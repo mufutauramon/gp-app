@@ -26,7 +26,7 @@ button.secondary{background:#0b1220}
 .disclaimer strong{ color:var(--accent); margin-right:6px; }
 .disclaimer button{
   position:absolute; top:8px; right:8px;
-  width:28px; height:28px; line-height:26px; text-align:center;
+  width:28px; height: 70px; line-height:26px; text-align:center;
   border:1px solid var(--muted); border-radius:999px;
   background:transparent; color:var(--text); cursor:pointer;
 }
