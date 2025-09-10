@@ -1,0 +1,16 @@
+:root { --bg:#0f172a; --panel:#111827; --muted:#374151; --text:#e5e7eb; --accent:#22d3ee; --bad:#ef4444; --ok:#10b981; }
+*{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--text);font:16px/1.5 system-ui,Segoe UI,Roboto,Arial}
+header{padding:16px 20px;border-bottom:1px solid var(--muted)} h1{margin:0 0 6px;font-size:22px}
+.controls{display:flex;gap:16px;flex-wrap:wrap;padding:12px 20px}
+label{display:flex;flex-direction:column;gap:6px}
+input,select,button{padding:10px;border-radius:8px;border:1px solid var(--muted);background:#0b1220;color:var(--text)}
+input:focus,select:focus{outline:2px solid var(--accent)}
+.buttons{display:flex;gap:10px;padding:12px 20px}
+button.primary{background:var(--accent);color:#002733;border:0}
+button.secondary{background:#0b1220}
+.grid{width:100%;border-collapse:collapse;margin:0 20px}
+.grid th,.grid td{border-bottom:1px solid var(--muted);padding:10px 8px;text-align:left}
+.stats{display:flex;gap:20px;padding:12px 20px;color:#cbd5e1}
+.invalid{border-color:var(--bad)!important}
+.toast{display:none;position:fixed;right:16px;bottom:16px;background:#0b1220;border:1px solid var(--muted);padding:10px 12px;border-radius:8px}
+@media print{ .buttons,.controls,header{display:none} body{background:#fff;color:#000} .grid{margin:0} }

@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Countries Result Calculator</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <header>
+    <h1>Countries Result Calculator</h1>
+    <p id="scaleSummary">Scale:</p>
+  </header>
+
+  <section class="controls">
+    <label>
+      Student Name
+      <input id="studentName" type="text" placeholder="Enter name" />
+    </label>
+
+    <label>
+      Country / Scale
+      <select id="countrySelect">
+        <option value="nigeria">Nigeria (A≥70→5)</option>
+        <option value="us">US (A≥90→4)</option>
+        <option value="us_plusminus">US +/- (A+≥97→4.3)</option>
+        <option value="canada">Canada (A≥85→4)</option>
+        <option value="uk">UK (First≥70→4)</option>
+        <option value="australia">Australia (HD≥85→7)</option>
+        <option value="india">India (O≥90→10)</option>
+        <option value="ghana">Ghana (A≥80→4)</option>
+      </select>
+    </label>
+  </section>
+
+  <section>
+    <table class="grid">
+      <thead>
+        <tr>
+          <th style="width:40%">Course Title</th>
+          <th style="width:12%">Units</th>
+          <th style="width:12%">Score</th>
+          <th style="width:12%">Grade</th>
+          <th style="width:12%">Points</th>
+          <th style="width:12%"></th>
+        </tr>
+      </thead>
+      <tbody id="tbody"></tbody>
+    </table>
+
+    <template id="row-template">
+      <tr>
+        <td><input class="title" type="text" placeholder="Course title" /></td>
+        <td><input class="unit" type="number" min="0" step="1" /></td>
+        <td><input class="score" type="number" min="0" max="100" step="1" /></td>
+        <td class="letter">—</td>
+        <td class="points">0</td>
+        <td><button class="remove" type="button">Remove</button></td>
+      </tr>
+    </template>
+
+    <div class="buttons">
+      <button id="addBtn" type="button">Add course</button>
+      <button id="resetBtn" type="button" class="secondary">Reset</button>
+      <button id="printBtn" type="button" class="secondary">Print</button>
+      <button id="submitBtn" type="button" class="primary">Submit</button>
+    </div>
+  </section>
+
+  <section class="stats">
+    <div><strong>Student:</strong> <span id="statStudent">—</span></div>
+    <div><strong>Total Units:</strong> <span id="statUnits">0</span></div>
+    <div><strong>GPA:</strong> <span id="statGpa">0.00</span></div>
+  </section>
+
+  <div id="toast" class="toast" role="status"></div>
+
+  <script defer src="./app.js"></script>
+</body>
+</html>
