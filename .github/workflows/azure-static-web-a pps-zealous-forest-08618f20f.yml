@@ -19,6 +19,7 @@ jobs:
         with:
           azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN_ZEALOUS_FOREST_08618F20F }}
           action: upload
-          app_location: gp-app/web      # your frontend folder
-          api_location: gp-app/api      # your Azure Functions folder
+          app_location: web      # your frontend folder
+          api_location: api      # your Azure Functions folder
           output_location: ""           # <-- must be empty for plain HTML
+
