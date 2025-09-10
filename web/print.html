@@ -61,7 +61,6 @@ async function loadData(){
   const j=JSON.parse(raw);
   return j.payload || null;
 }
-
 (async function(){
   const data=await loadData();
   if(!data){ document.body.insertAdjacentHTML('beforeend','<p>No data.</p>'); return; }
