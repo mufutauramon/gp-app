@@ -251,14 +251,14 @@ function initDisclaimer(){
   const btn = document.getElementById('dismissDisclaimer');
   if (!box || !btn) return;
 
-  // Show unless dismissed in the last 30 days
-  try {
-    const last = Number(localStorage.getItem('disclaimerDismissedAt') || 0);
-    // const THIRTY_DAYS = 1000 * 60 * 60 * 24 * 30;
-    // if (!last || (Date.now() - last) > THIRTY_DAYS) {
-    //   box.style.display = 'block';
-    // }
-  } catch { box.style.display = 'block'; }
+//   // Show unless dismissed in the last 30 days
+//   try {
+//     const last = Number(localStorage.getItem('disclaimerDismissedAt') || 0);
+//     // const THIRTY_DAYS = 1000 * 60 * 60 * 24 * 30;
+//     // if (!last || (Date.now() - last) > THIRTY_DAYS) {
+//     //   box.style.display = 'block';
+//     // }
+//   } catch { box.style.display = 'block'; }
 
   btn.addEventListener('click', () => {
     box.style.display = 'none';
