@@ -245,5 +245,28 @@
   document.getElementById('studentName').addEventListener('input', (e)=>{ state.studentName = e.target.value; renderStats(); });
   document.getElementById('countrySelect').addEventListener('change', (e)=>{ state.country = e.target.value; render(); });
 
+  // --- Floating disclaimer (show once, hide for 30 days when dismissed) ---
+function initDisclaimer(){
+  const box = document.getElementById('disclaimer');
+  const btn = document.getElementById('dismissDisclaimer');
+  if (!box || !btn) return;
+
+  // Show unless dismissed in the last 30 days
+  try {
+    const last = Number(localStorage.getItem('disclaimerDismissedAt') || 0);
+    const THIRTY_DAYS = 1000 * 60 * 60 * 24 * 30;
+    if (!last || (Date.now() - last) > THIRTY_DAYS) {
+      box.style.display = 'block';
+    }
+  } catch { box.style.display = 'block'; }
+
+  btn.addEventListener('click', () => {
+    box.style.display = 'none';
+    try { localStorage.setItem('disclaimerDismissedAt', String(Date.now())); } catch {}
+  });
+}
+// Call it once on load
+initDisclaimer();
+
   render();
 })();

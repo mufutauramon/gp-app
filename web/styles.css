@@ -14,3 +14,21 @@ button.secondary{background:#0b1220}
 .invalid{border-color:var(--bad)!important}
 .toast{display:none;position:fixed;right:16px;bottom:16px;background:#0b1220;border:1px solid var(--muted);padding:10px 12px;border-radius:8px}
 @media print{ .buttons,.controls,header{display:none} body{background:#fff;color:#000} .grid{margin:0} }
+/* Floating disclaimer */
+.disclaimer{
+  position: fixed; right:16px; bottom:16px; z-index:1000;
+  max-width: 560px;
+  background:#0b1220; color:var(--text);
+  border:1px solid var(--muted); border-radius:12px;
+  padding:12px 44px 12px 12px;
+  box-shadow:0 12px 30px rgba(0,0,0,.45);
+}
+.disclaimer strong{ color:var(--accent); margin-right:6px; }
+.disclaimer button{
+  position:absolute; top:8px; right:8px;
+  width:28px; height:28px; line-height:26px; text-align:center;
+  border:1px solid var(--muted); border-radius:999px;
+  background:transparent; color:var(--text); cursor:pointer;
+}
+.disclaimer button:hover{ border-color:var(--accent); }
+@media (max-width:640px){ .disclaimer{ left:16px; right:16px; } }
