@@ -32,3 +32,34 @@ button.secondary{background:#0b1220}
 }
 .disclaimer button:hover{ border-color:var(--accent); }
 @media (max-width:640px){ .disclaimer{ left:16px; right:16px; } }
+
+/* Bottom/vertical scale panel (used on index and print) */
+.scale-panel{
+  margin:16px 20px 24px;
+  padding:12px;
+  border-top:1px solid var(--muted);
+  background:#0b1220;
+  border-radius:12px;
+}
+.scale-title{
+  margin:0 0 8px;
+  font-size:16px;
+  color:#cbd5e1;
+}
+.scale-list{
+  list-style:none;
+  margin:0;
+  padding:0;
+  display:flex;
+  flex-direction:column;
+  gap:6px;
+}
+.scale-list li{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  padding:8px 10px;
+  border:1px solid var(--muted);
+  border-radius:8px;
+}
+.scale-list .badge{ font-weight:600; }

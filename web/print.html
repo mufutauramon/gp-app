@@ -40,6 +40,7 @@ const SCALES = {
   india:[{letter:'O',min:90,points:10},{letter:'A+',min:80,points:9},{letter:'A',min:70,points:8},{letter:'B+',min:60,points:7},{letter:'B',min:55,points:6},{letter:'C',min:50,points:5},{letter:'P',min:40,points:4},{letter:'F',min:0,points:0}],
   ghana:[{letter:'A',min:80,points:4.0},{letter:'B+',min:75,points:3.5},{letter:'B',min:70,points:3.0},{letter:'C+',min:65,points:2.5},{letter:'C',min:60,points:2.0},{letter:'D+',min:55,points:1.5},{letter:'D',min:50,points:1.0},{letter:'F',min:0,points:0}]
 };
+renderScaleList(scale);
 
 function gradeFromScore(scale,score){
   const n=Number(score); if(!Number.isFinite(n)) return {letter:'—',points:0};
@@ -78,6 +79,21 @@ async function loadData(){
     tr.innerHTML=`<td>${c.title||''}</td><td>${c.unit||0}</td><td>${c.score||0}</td><td>${letter}</td><td>${points}</td>`;
     tbody.appendChild(tr);
   });
+  function renderScaleList(scale){
+  const list = document.getElementById('pScaleList');
+  if (!list) return;
+  list.innerHTML = '';
+  const ranges = [...scale].sort((a,b)=>b.min - a.min);
+  ranges.forEach(r=>{
+    const li = document.createElement('li');
+    li.innerHTML = `
+      <span class="badge">${r.letter}</span>
+      <span>min ${r.min}</span>
+      <span>${Number(r.points)} pts</span>
+    `;
+    list.appendChild(li);
+  });
+}
   document.getElementById('pUnits').textContent=units;
   document.getElementById('pGpa').textContent = units>0 ? (quality/units).toFixed(2) : '0.00';
 })();

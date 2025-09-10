@@ -88,14 +88,15 @@
   };
 
   // elements
-  const tbody = document.getElementById('tbody');
-  const rowTpl = document.getElementById('row-template');
-  const nameInput = document.getElementById('studentName');
-  const countrySelect = document.getElementById('countrySelect');
-  const scaleSummary = document.getElementById('scaleSummary');
-  const statStudent = document.getElementById('statStudent');
-  const statUnits = document.getElementById('statUnits');
-  const statGpa = document.getElementById('statGpa');
+const tbody = document.getElementById('tbody');
+const rowTpl = document.getElementById('row-template');
+const nameInput = document.getElementById('studentName');
+const countrySelect = document.getElementById('countrySelect');
+// const scaleSummary = document.getElementById('scaleSummary'); // remove/obsolete
+const scaleList = document.getElementById('scaleList');
+const statStudent = document.getElementById('statStudent');
+const statUnits = document.getElementById('statUnits');
+const statGpa = document.getElementById('statGpa');
 
   // helpers
   function uid() { return Math.random().toString(36).slice(2, 10); }
@@ -123,7 +124,23 @@
 
   // rendering
   function render() { renderScale(); renderTable(); renderStats(); }
-  function renderScale() { scaleSummary.textContent = 'Scale: ' + scaleSummaryText(); countrySelect.value = state.country; }
+ function renderScale() {
+  countrySelect.value = state.country;
+
+  if (!scaleList) return;
+  scaleList.innerHTML = '';
+
+  const ranges = [...currentScale()].sort((a,b) => b.min - a.min);
+  ranges.forEach(r => {
+    const li = document.createElement('li');
+    li.innerHTML = `
+      <span class="badge">${r.letter}</span>
+      <span>min ${r.min}</span>
+      <span>${Number(r.points)} pts</span>
+    `;
+    scaleList.appendChild(li);
+  });
+}
 
   function renderTable() {
     tbody.innerHTML = '';
