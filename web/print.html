@@ -30,6 +30,7 @@
   </table>
 
 <script>
+/* ---- Same scales as index ---- */
 const SCALES = {
   nigeria:[{letter:'A',min:70,points:5},{letter:'B',min:60,points:4},{letter:'C',min:50,points:3},{letter:'D',min:45,points:2},{letter:'E',min:40,points:1},{letter:'F',min:0,points:0}],
   us:[{letter:'A',min:90,points:4},{letter:'B',min:80,points:3},{letter:'C',min:70,points:2},{letter:'D',min:60,points:1},{letter:'F',min:0,points:0}],
@@ -40,51 +41,20 @@ const SCALES = {
   india:[{letter:'O',min:90,points:10},{letter:'A+',min:80,points:9},{letter:'A',min:70,points:8},{letter:'B+',min:60,points:7},{letter:'B',min:55,points:6},{letter:'C',min:50,points:5},{letter:'P',min:40,points:4},{letter:'F',min:0,points:0}],
   ghana:[{letter:'A',min:80,points:4.0},{letter:'B+',min:75,points:3.5},{letter:'B',min:70,points:3.0},{letter:'C+',min:65,points:2.5},{letter:'C',min:60,points:2.0},{letter:'D+',min:55,points:1.5},{letter:'D',min:50,points:1.0},{letter:'F',min:0,points:0}]
 };
-renderScaleList(scale);
 
-function gradeFromScore(scale,score){
-  const n=Number(score); if(!Number.isFinite(n)) return {letter:'—',points:0};
-  const ranges=[...scale].sort((a,b)=>b.min-a.min);
-  const band=ranges.find(r=>n>=r.min);
-  return band?{letter:band.letter,points:band.points}:{letter:'—',points:0};
+function gradeFromScore(scale, score){
+  const n = Number(score);
+  if (!Number.isFinite(n) || n<0 || n>100) return {letter:'—', points:0};
+  const band = [...scale].sort((a,b)=>b.min-a.min).find(r => n >= r.min);
+  return band ? {letter: band.letter, points: Number(band.points)} : {letter:'—', points:0};
 }
 
-async function loadData(){
-  const id=new URLSearchParams(location.search).get('id');
-  if(id){
-    try{
-      const r=await fetch(`/api/submissions/${encodeURIComponent(id)}`);
-      if(r.ok) return await r.json(); // { id, studentName, country, scaleLegend, courses:[] }
-    }catch{}
-  }
-  const raw=sessionStorage.getItem('gpa_last_submission');
-  if(!raw) return null;
-  const j=JSON.parse(raw);
-  return j.payload || null;
-}
-(async function(){
-  const data=await loadData();
-  if(!data){ document.body.insertAdjacentHTML('beforeend','<p>No data.</p>'); return; }
-  document.getElementById('pStudent').textContent = data.studentName || '—';
-  document.getElementById('pScale').textContent = data.scaleLegend || '';
-  const scale=SCALES[data.country]||SCALES.nigeria;
-
-  let units=0, quality=0;
-  const tbody=document.getElementById('pBody');
-  tbody.innerHTML='';
-  (data.courses||[]).forEach(c=>{
-    const {letter,points}=gradeFromScore(scale,c.score);
-    units+=Number(c.unit)||0; quality+= (Number(c.unit)||0)*points;
-    const tr=document.createElement('tr');
-    tr.innerHTML=`<td>${c.title||''}</td><td>${c.unit||0}</td><td>${c.score||0}</td><td>${letter}</td><td>${points}</td>`;
-    tbody.appendChild(tr);
-  });
-  function renderScaleList(scale){
+function renderScaleList(scale){
   const list = document.getElementById('pScaleList');
   if (!list) return;
   list.innerHTML = '';
   const ranges = [...scale].sort((a,b)=>b.min - a.min);
-  ranges.forEach(r=>{
+  for (const r of ranges){
     const li = document.createElement('li');
     li.innerHTML = `
       <span class="badge">${r.letter}</span>
@@ -92,11 +62,84 @@ async function loadData(){
       <span>${Number(r.points)} pts</span>
     `;
     list.appendChild(li);
-  });
+  }
 }
-  document.getElementById('pUnits').textContent=units;
-  document.getElementById('pGpa').textContent = units>0 ? (quality/units).toFixed(2) : '0.00';
+
+async function fetchSubmission(id){
+  const res = await fetch(`/api/submissions/${encodeURIComponent(id)}`, { headers: { 'Accept': 'application/json' }});
+  if (!res.ok) throw new Error(`GET /api/submissions/${id} → ${res.status}`);
+  // Parse robustly in case content-type is missing
+  const text = await res.text();
+  try { return JSON.parse(text); } catch { throw new Error('Server returned non-JSON'); }
+}
+
+async function loadData(){
+  const id = new URLSearchParams(location.search).get('id');
+  if (id) {
+    try {
+      const j = await fetchSubmission(id);
+      // Normalize course keys if API returned Title/Unit/Score
+      if (Array.isArray(j.courses) && j.courses.length && j.courses[0].Title) {
+        j.courses = j.courses.map(r => ({ title: r.Title, unit: r.Unit, score: r.Score }));
+      }
+      return j;
+    } catch (e) {
+      console.error('Fetch by id failed:', e);
+      // fall through to sessionStorage
+    }
+  }
+  const raw = sessionStorage.getItem('gpa_last_submission');
+  if (!raw) return null;
+  try {
+    const j = JSON.parse(raw);
+    return j.payload || null;
+  } catch {
+    return null;
+  }
+}
+
+(async function(){
+  const data = await loadData();
+
+  if (!data) {
+    document.body.insertAdjacentHTML('beforeend', '<p style="padding:16px">No data to print.</p>');
+    return;
+  }
+
+  // Stats
+  document.getElementById('pStudent').textContent = data.studentName || '—';
+  document.getElementById('pScale').textContent = data.scaleLegend || '';
+
+  const scale = SCALES[data.country] || SCALES.nigeria;
+  renderScaleList(scale);
+
+  // Courses
+  const tbody = document.getElementById('pBody');
+  tbody.innerHTML = '';
+  let units = 0, quality = 0;
+
+  for (const c of (data.courses || [])) {
+    const { letter, points } = gradeFromScore(scale, c.score);
+    const unit = Number(c.unit) || 0;
+    const score = Number(c.score) || 0;
+    units += unit;
+    quality += unit * points;
+
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${c.title || ''}</td>
+      <td>${unit}</td>
+      <td>${score}</td>
+      <td>${letter}</td>
+      <td>${points}</td>
+    `;
+    tbody.appendChild(tr);
+  }
+
+  document.getElementById('pUnits').textContent = units;
+  document.getElementById('pGpa').textContent = units > 0 ? (quality / units).toFixed(2) : '0.00';
 })();
 </script>
+
 </body>
 </html>
