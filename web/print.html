@@ -13,13 +13,6 @@
     <button class="noprint" onclick="window.print()">Print</button>
   </header>
 
-  <section class="stats">
-    <div><strong>Student:</strong> <span id="pStudent">—</span></div>
-    <div><strong>Scale:</strong> <span id="pScale">—</span></div>
-    <div><strong>Total Units:</strong> <span id="pUnits">0</span></div>
-    <div><strong>GPA:</strong> <span id="pGpa">0.00</span></div>
-  </section>
-
   <table class="grid">
     <thead>
       <tr>
@@ -28,6 +21,21 @@
     </thead>
     <tbody id="pBody"></tbody>
   </table>
+  
+<table class="grid">
+  <thead>
+    <tr>
+      <th>Course</th><th>Units</th><th>Score</th><th>Grade</th><th>Points</th>
+    </tr>
+  </thead>
+  <tbody id="pBody"></tbody>
+</table>
+
+<!-- Vertical scale panel (prints at the bottom) -->
+<section class="scale-panel">
+  <h2 class="scale-title">Grading scale</h2>
+  <ul id="pScaleList" class="scale-list"></ul>
+</section>
 
 <script>
 /* ---- Same scales as index ---- */
