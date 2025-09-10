@@ -234,34 +234,113 @@ const statGpa = document.getElementById('statGpa');
     return true;
   }
 
-  async function onSubmit() {
-    try {
-      if (!validate()) return;
-      const btn = document.getElementById('submitBtn');
-      btn.disabled = true; btn.textContent = 'Submitting...';
+//   async function onSubmit() {
+//     try {
+//       if (!validate()) return;
+//       const btn = document.getElementById('submitBtn');
+//       btn.disabled = true; btn.textContent = 'Submitting...';
 
-      const payload = serializeState();
-      const res = await fetch(`${API_BASE}/submissions`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
+//       const payload = serializeState();
+//       const res = await fetch(`${API_BASE}/submissions`, {
+//         method: 'POST', headers: { 'Content-Type': 'application/json' },
+//         body: JSON.stringify(payload)
+//       });
 
-      if (!res.ok) {
-        const txt = await res.text();
-        alert('Save failed: ' + txt);
-        btn.disabled = false; btn.textContent = 'Submit';
-        return;
-      }
+//       if (!res.ok) {
+//         const txt = await res.text();
+//         alert('Save failed: ' + txt);
+//         btn.disabled = false; btn.textContent = 'Submit';
+//         return;
+//       }
 
-      const { id } = await res.json();
-      sessionStorage.setItem(STORAGE_KEY, JSON.stringify({ id, payload }));
-      window.location.href = `./print.html?id=${encodeURIComponent(id)}`;
-    } catch (e) {
-      alert('Network error: ' + e.message);
-      const btn = document.getElementById('submitBtn');
-      if (btn) { btn.disabled = false; btn.textContent = 'Submit'; }
+// //       const { id } = await res.json();
+// //       sessionStorage.setItem(STORAGE_KEY, JSON.stringify({ id, payload }));
+// //       window.location.href = `./print.html?id=${encodeURIComponent(id)}`;
+// //     } catch (e) {
+// //       alert('Network error: ' + e.message);
+// //       const btn = document.getElementById('submitBtn');
+// //       if (btn) { btn.disabled = false; btn.textContent = 'Submit'; }
+// //     }
+// //   }
+//  const { id } = await res.json();
+//   sessionStorage.setItem(STORAGE_KEY, JSON.stringify({ id, payload }));
+//    const data = await res.json();
+//     const id = data.id;
+//     if (data.duplicate) {
+//         toast('This submission already exists. Opening saved copy…');
+//     }
+//      sessionStorage.setItem(STORAGE_KEY, JSON.stringify({ id, payload }));
+//        window.location.href = `./print.html?id=${encodeURIComponent(id)}`;
+
+async function onSubmit() {
+  try {
+    if (!validate()) return;
+
+    const btn = document.getElementById('submitBtn');
+    btn.disabled = true;
+    btn.textContent = 'Submitting...';
+
+    const payload = serializeState();
+
+    const res = await fetch(`${API_BASE}/submissions`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+
+    if (!res.ok) {
+      const txt = await res.text();
+      console.error('Save failed:', txt);
+      alert('Save failed: ' + txt);
+      btn.disabled = false;
+      btn.textContent = 'Submit';
+      return;
     }
+
+    // Parse robustly in case a proxy strips content-type
+    const text = await res.text();
+    let data;
+    try {
+      data = JSON.parse(text);
+    } catch {
+      console.error('Unexpected response:', text);
+      alert('Unexpected response from server.');
+      btn.disabled = false;
+      btn.textContent = 'Submit';
+      return;
+    }
+
+    const id = data?.id;
+    if (!id) {
+      console.error('No id in response:', data);
+      alert('Save succeeded but no id returned.');
+      btn.disabled = false;
+      btn.textContent = 'Submit';
+      return;
+    }
+
+    // 👉 Show a friendly note if the server says it was a duplicate
+    if (data.duplicate) {
+      // uses your existing toast(); if you prefer, swap for alert(...)
+      if (typeof toast === 'function') {
+        toast('This submission already exists. Opening saved copy…', 3000);
+      } else {
+        alert('This submission already exists. Opening saved copy…');
+      }
+    }
+
+    // Keep a local copy for the print page
+    sessionStorage.setItem(STORAGE_KEY, JSON.stringify({ id, payload }));
+
+    // Go to the result
+    window.location.href = `./print.html?id=${encodeURIComponent(id)}`;
+  } catch (e) {
+    console.error('Network error:', e);
+    alert('Network error: ' + e.message);
+    const btn = document.getElementById('submitBtn');
+    if (btn) { btn.disabled = false; btn.textContent = 'Submit'; }
   }
+}
 
   // wire + init
   document.getElementById('addBtn').addEventListener('click', addCourse);
