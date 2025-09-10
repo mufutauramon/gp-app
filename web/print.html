@@ -5,13 +5,54 @@
   <title>Results Sheet</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <link rel="stylesheet" href="./styles.css" />
-  <style>@media print{.noprint{display:none}}</style>
+  <style>
+    @media print { .noprint{display:none} .scale-panel { break-inside: avoid; page-break-inside: avoid; } }
+    /* Vertical scale block (same look as index) */
+    .scale-panel{
+      margin:16px 20px 24px;
+      padding:12px;
+      border-top:1px solid var(--muted);
+      background:#0b1220;
+      border-radius:12px;
+    }
+    .scale-title{
+      margin:0 0 8px;
+      font-size:16px;
+      color:#cbd5e1;
+    }
+    .scale-list{
+      list-style:none;
+      margin:0;
+      padding:0;
+      display:flex;
+      flex-direction:column;
+      gap:6px;
+    }
+    .scale-list li{
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      padding:8px 10px;
+      border:1px solid var(--muted);
+      border-radius:8px;
+    }
+    .scale-list .badge{ font-weight:600; }
+    /* Hide the inline scale row so we only show the vertical block */
+    #pScaleRow { display:none; }
+  </style>
 </head>
 <body>
   <header>
     <h1>Results Sheet</h1>
     <button class="noprint" onclick="window.print()">Print</button>
   </header>
+
+  <section class="stats">
+    <div><strong>Student:</strong> <span id="pStudent">—</span></div>
+    <div id="pScaleRow"><strong>Scale:</strong> <span id="pScale">—</span></div>
+    <div><strong>Total Units:</strong> <span id="pUnits">0</span></div>
+    <div><strong>GPA:</strong> <span id="pGpa">0.00</span></div>
+  </section>
 
   <table class="grid">
     <thead>
@@ -21,16 +62,15 @@
     </thead>
     <tbody id="pBody"></tbody>
   </table>
-  
 
-<!-- Vertical scale panel (prints at the bottom) -->
-<section class="scale-panel">
-  <h2 class="scale-title">Grading scale</h2>
-  <ul id="pScaleList" class="scale-list"></ul>
-</section>
+  <!-- Vertical grading scale AT THE BOTTOM -->
+  <section class="scale-panel">
+    <h2 class="scale-title">Grading scale</h2>
+    <ul id="pScaleList" class="scale-list"></ul>
+  </section>
 
 <script>
-/* ---- Same scales as index ---- */
+/* ---------- Same scales as index ---------- */
 const SCALES = {
   nigeria:[{letter:'A',min:70,points:5},{letter:'B',min:60,points:4},{letter:'C',min:50,points:3},{letter:'D',min:45,points:2},{letter:'E',min:40,points:1},{letter:'F',min:0,points:0}],
   us:[{letter:'A',min:90,points:4},{letter:'B',min:80,points:3},{letter:'C',min:70,points:2},{letter:'D',min:60,points:1},{letter:'F',min:0,points:0}],
@@ -68,7 +108,6 @@ function renderScaleList(scale){
 async function fetchSubmission(id){
   const res = await fetch(`/api/submissions/${encodeURIComponent(id)}`, { headers: { 'Accept': 'application/json' }});
   if (!res.ok) throw new Error(`GET /api/submissions/${id} → ${res.status}`);
-  // Parse robustly in case content-type is missing
   const text = await res.text();
   try { return JSON.parse(text); } catch { throw new Error('Server returned non-JSON'); }
 }
@@ -84,7 +123,7 @@ async function loadData(){
       }
       return j;
     } catch (e) {
-      console.error('Fetch by id failed:', e);
+      console.warn('Fetch by id failed:', e);
       // fall through to sessionStorage
     }
   }
@@ -100,30 +139,30 @@ async function loadData(){
 
 (async function(){
   const data = await loadData();
+  console.log('Print data:', data);
 
-  if (!data) {
-    document.body.insertAdjacentHTML('beforeend', '<p style="padding:16px">No data to print.</p>');
+  if (!data || !Array.isArray(data.courses) || data.courses.length === 0) {
+    document.body.insertAdjacentHTML('beforeend', '<p style="padding:16px">No courses to print.</p>');
     return;
   }
 
-  // Stats
-  document.getElementById('pStudent').textContent = data.studentName || '—';
-  document.getElementById('pScale').textContent = data.scaleLegend || '';
+  // Header stats
+  document.getElementById('pStudent')?.replaceChildren(document.createTextNode(data.studentName || '—'));
+  document.getElementById('pScale')?.replaceChildren(document.createTextNode(data.scaleLegend || ''));
 
   const scale = SCALES[data.country] || SCALES.nigeria;
   renderScaleList(scale);
 
-  // Courses
+  // Table rows
   const tbody = document.getElementById('pBody');
   tbody.innerHTML = '';
   let units = 0, quality = 0;
 
-  for (const c of (data.courses || [])) {
-    const { letter, points } = gradeFromScore(scale, c.score);
+  for (const c of data.courses) {
     const unit = Number(c.unit) || 0;
     const score = Number(c.score) || 0;
-    units += unit;
-    quality += unit * points;
+    const { letter, points } = gradeFromScore(scale, score);
+    units += unit; quality += unit * points;
 
     const tr = document.createElement('tr');
     tr.innerHTML = `
@@ -136,10 +175,9 @@ async function loadData(){
     tbody.appendChild(tr);
   }
 
-  document.getElementById('pUnits').textContent = units;
+  document.getElementById('pUnits').textContent = String(units);
   document.getElementById('pGpa').textContent = units > 0 ? (quality / units).toFixed(2) : '0.00';
 })();
 </script>
-
 </body>
 </html>
