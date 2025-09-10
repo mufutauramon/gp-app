@@ -76,7 +76,7 @@
 
   const API_BASE = '/api';
   const STORAGE_KEY = 'gpa_last_submission';
-
+  const LAST_SAVED_KEY = 'gpa_last_saved_fp';   // stores { fp, id }
   const state = {
     studentName: '',
     country: 'nigeria',
@@ -226,6 +226,15 @@ const statGpa = document.getElementById('statGpa');
   function validate() {
     if (!state.studentName.trim()) { toast('Please enter student name'); return false; }
     if (!state.courses.length) { toast('Add at least one course'); return false; }
+ // disallow duplicate course titles (case-insensitive)
+    const seenTitles = new Set();
+    for (const c of state.courses) {
+    const t = String(c.title || '').trim().toLowerCase();
+    if (!t) { toast('Every course needs a title'); return false; }
+    if (seenTitles.has(t)) { toast(`Duplicate course: ${c.title}`); return false; }
+    seenTitles.add(t);
+ }
+
     for (const c of state.courses) {
       if (!c.title?.trim()) { toast('Every course needs a title'); return false; }
       if (!(Number(c.unit) > 0)) { toast('Units must be > 0'); return false; }
@@ -234,44 +243,76 @@ const statGpa = document.getElementById('statGpa');
     return true;
   }
 
-//   async function onSubmit() {
-//     try {
-//       if (!validate()) return;
-//       const btn = document.getElementById('submitBtn');
-//       btn.disabled = true; btn.textContent = 'Submitting...';
 
-//       const payload = serializeState();
-//       const res = await fetch(`${API_BASE}/submissions`, {
-//         method: 'POST', headers: { 'Content-Type': 'application/json' },
-//         body: JSON.stringify(payload)
-//       });
+// async function onSubmit() {
+//   try {
+//     if (!validate()) return;
 
-//       if (!res.ok) {
-//         const txt = await res.text();
-//         alert('Save failed: ' + txt);
-//         btn.disabled = false; btn.textContent = 'Submit';
-//         return;
-//       }
+//     const btn = document.getElementById('submitBtn');
+//     btn.disabled = true;
+//     btn.textContent = 'Submitting...';
 
-// //       const { id } = await res.json();
-// //       sessionStorage.setItem(STORAGE_KEY, JSON.stringify({ id, payload }));
-// //       window.location.href = `./print.html?id=${encodeURIComponent(id)}`;
-// //     } catch (e) {
-// //       alert('Network error: ' + e.message);
-// //       const btn = document.getElementById('submitBtn');
-// //       if (btn) { btn.disabled = false; btn.textContent = 'Submit'; }
-// //     }
-// //   }
-//  const { id } = await res.json();
-//   sessionStorage.setItem(STORAGE_KEY, JSON.stringify({ id, payload }));
-//    const data = await res.json();
-//     const id = data.id;
-//     if (data.duplicate) {
-//         toast('This submission already exists. Opening saved copy…');
+//     const payload = serializeState();
+
+//     const res = await fetch(`${API_BASE}/submissions`, {
+//       method: 'POST',
+//       headers: { 'Content-Type': 'application/json' },
+//       body: JSON.stringify(payload)
+//     });
+
+//     if (!res.ok) {
+//       const txt = await res.text();
+//       console.error('Save failed:', txt);
+//       alert('Save failed: ' + txt);
+//       btn.disabled = false;
+//       btn.textContent = 'Submit';
+//       return;
 //     }
-//      sessionStorage.setItem(STORAGE_KEY, JSON.stringify({ id, payload }));
-//        window.location.href = `./print.html?id=${encodeURIComponent(id)}`;
 
+//     // Parse robustly in case a proxy strips content-type
+//     const text = await res.text();
+//     let data;
+//     try {
+//       data = JSON.parse(text);
+//     } catch {
+//       console.error('Unexpected response:', text);
+//       alert('Unexpected response from server.');
+//       btn.disabled = false;
+//       btn.textContent = 'Submit';
+//       return;
+//     }
+
+//     const id = data?.id;
+//     if (!id) {
+//       console.error('No id in response:', data);
+//       alert('Save succeeded but no id returned.');
+//       btn.disabled = false;
+//       btn.textContent = 'Submit';
+//       return;
+//     }
+
+//     // 👉 Show a friendly note if the server says it was a duplicate
+//     if (data.duplicate) {
+//       // uses your existing toast(); if you prefer, swap for alert(...)
+//       if (typeof toast === 'function') {
+//         toast('This submission already exists. Opening saved copy…', 3000);
+//       } else {
+//         alert('This submission already exists. Opening saved copy…');
+//       }
+//     }
+
+//     // Keep a local copy for the print page
+//     sessionStorage.setItem(STORAGE_KEY, JSON.stringify({ id, payload }));
+
+//     // Go to the result
+//     window.location.href = `./print.html?id=${encodeURIComponent(id)}`;
+//   } catch (e) {
+//     console.error('Network error:', e);
+//     alert('Network error: ' + e.message);
+//     const btn = document.getElementById('submitBtn');
+//     if (btn) { btn.disabled = false; btn.textContent = 'Submit'; }
+//   }
+// }
 async function onSubmit() {
   try {
     if (!validate()) return;
@@ -281,65 +322,92 @@ async function onSubmit() {
     btn.textContent = 'Submitting...';
 
     const payload = serializeState();
+    const fp = await makeFingerprintForClient(payload);
 
+    // Short-circuit if same as last saved
+    try {
+      const last = JSON.parse(localStorage.getItem(LAST_SAVED_KEY) || 'null');
+      if (last && last.fp === fp && last.id) {
+        toast('No changes detected. Opening your existing result…', 3000);
+        sessionStorage.setItem(STORAGE_KEY, JSON.stringify({ id: last.id, payload }));
+        window.location.href = `./print.html?id=${encodeURIComponent(last.id)}`;
+        return;
+      }
+    } catch {}
+
+    // POST to server
     const res = await fetch(`${API_BASE}/submissions`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-cache' },
       body: JSON.stringify(payload)
     });
 
-    if (!res.ok) {
-      const txt = await res.text();
-      console.error('Save failed:', txt);
-      alert('Save failed: ' + txt);
-      btn.disabled = false;
-      btn.textContent = 'Submit';
-      return;
-    }
-
-    // Parse robustly in case a proxy strips content-type
+    // Accept 200/201 as success; also handle a possible 409 duplicate
+    const status = res.status;
     const text = await res.text();
-    let data;
-    try {
-      data = JSON.parse(text);
-    } catch {
-      console.error('Unexpected response:', text);
-      alert('Unexpected response from server.');
-      btn.disabled = false;
-      btn.textContent = 'Submit';
+    let data = {};
+    try { data = text ? JSON.parse(text) : {}; } catch { /* fallback empty */ }
+
+    if (status === 409 && data && data.id) {
+      // Server says duplicate, and gave us the existing id
+      toast('This submission already exists. Opening saved copy…', 3000);
+      localStorage.setItem(LAST_SAVED_KEY, JSON.stringify({ fp, id: data.id }));
+      sessionStorage.setItem(STORAGE_KEY, JSON.stringify({ id: data.id, payload }));
+      window.location.href = `./print.html?id=${encodeURIComponent(data.id)}`;
       return;
     }
 
-    const id = data?.id;
-    if (!id) {
-      console.error('No id in response:', data);
-      alert('Save succeeded but no id returned.');
-      btn.disabled = false;
-      btn.textContent = 'Submit';
+    if (status === 200 || status === 201) {
+      // New or duplicate (server returns duplicate:true)
+      const id = data?.id;
+      if (!id) throw new Error('Server did not return an id.');
+      if (data.duplicate) toast('This submission already exists. Opening saved copy…', 3000);
+      localStorage.setItem(LAST_SAVED_KEY, JSON.stringify({ fp, id }));
+      sessionStorage.setItem(STORAGE_KEY, JSON.stringify({ id, payload }));
+      window.location.href = `./print.html?id=${encodeURIComponent(id)}`;
       return;
     }
 
-    // 👉 Show a friendly note if the server says it was a duplicate
-    if (data.duplicate) {
-      // uses your existing toast(); if you prefer, swap for alert(...)
-      if (typeof toast === 'function') {
-        toast('This submission already exists. Opening saved copy…', 3000);
-      } else {
-        alert('This submission already exists. Opening saved copy…');
-      }
-    }
-
-    // Keep a local copy for the print page
-    sessionStorage.setItem(STORAGE_KEY, JSON.stringify({ id, payload }));
-
-    // Go to the result
-    window.location.href = `./print.html?id=${encodeURIComponent(id)}`;
+    // Anything else = failure
+    console.error('Save failed:', status, text);
+    alert('Save failed: ' + (text || status));
+    btn.disabled = false;
+    btn.textContent = 'Submit';
   } catch (e) {
     console.error('Network error:', e);
     alert('Network error: ' + e.message);
     const btn = document.getElementById('submitBtn');
     if (btn) { btn.disabled = false; btn.textContent = 'Submit'; }
   }
+}
+
+function makeFingerprintForClient(payload) {
+  const clean = s => String(s || '').trim().toLowerCase();
+  const norm = {
+    studentName: clean(payload.studentName),
+    country: clean(payload.country),
+    courses: (payload.courses || [])
+      .map(c => ({
+        title: clean(c.title),
+        unit: Number(c.unit) || 0,
+        score: Number(c.score) || 0
+      }))
+      .sort((a,b) => {
+        const t = a.title.localeCompare(b.title); if (t) return t;
+        if (a.unit !== b.unit) return a.unit - b.unit;
+        return a.score - b.score;
+      })
+  };
+  return sha256(JSON.stringify(norm));
+}
+
+// tiny, zero-dep SHA-256 (browser SubtleCrypto)
+function sha256(str){
+  const enc = new TextEncoder().encode(str);
+  return crypto.subtle.digest('SHA-256', enc).then(buf => {
+    const bytes = Array.from(new Uint8Array(buf));
+    return bytes.map(b => b.toString(16).padStart(2,'0')).join('');
+  });
 }
 
   // wire + init
