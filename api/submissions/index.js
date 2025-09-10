@@ -15,7 +15,7 @@ module.exports = async function (context, req) {
   try {
     const { studentName = "", country = "nigeria", scaleLegend = "", courses } = req.body || {};
     if (!Array.isArray(courses) || courses.length === 0) {
-      context.res = { status: 400, jsonBody: { error: "courses must be a non-empty array" } };
+      context.res = { status: 400, headers: { "Content-Type": "application/json" }, body: { error: "courses must be a non-empty array" } };
       return;
     }
 
@@ -49,7 +49,7 @@ module.exports = async function (context, req) {
       }
 
       await tx.commit();
-      context.res = { status: 201, jsonBody: { id } };
+      context.res = { status: 201, headers: { "Content-Type": "application/json" }, body: { id } };
     } catch (err) {
       await tx.rollback();
       throw err;
@@ -58,6 +58,6 @@ module.exports = async function (context, req) {
     context.log.error("submissions error", err);
     const message = err?.originalError?.info?.message || err?.message || "server error";
     const code = err?.code || err?.originalError?.info?.number || undefined;
-    context.res = { status: 500, jsonBody: { error: message, code } };
+    context.res = { status: 500, headers: { "Content-Type": "application/json" }, body: { error: message, code } };
   }
 };

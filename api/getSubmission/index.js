@@ -14,9 +14,10 @@ module.exports = async function (context, req) {
   try {
     const id = context.bindingData.id;
     if (!id || !/^[0-9a-fA-F-]{36}$/.test(id)) {
-      context.res = { status: 400, jsonBody: { error: "invalid id" } };
+      context.res = { status: 400, headers: { "Content-Type": "application/json" }, body: { error: "invalid id" } };
       return;
     }
+
     const pool = await getPool();
 
     const rSub = await pool.request()
@@ -24,7 +25,7 @@ module.exports = async function (context, req) {
       .query(`select Id, StudentName, Country, ScaleLegend, CreatedAt from dbo.Submissions where Id=@Id`);
 
     if (rSub.recordset.length === 0) {
-      context.res = { status: 404, jsonBody: { error: "not found" } };
+      context.res = { status: 404, headers: { "Content-Type": "application/json" }, body: { error: "not found" } };
       return;
     }
     const sub = rSub.recordset[0];
@@ -35,7 +36,8 @@ module.exports = async function (context, req) {
 
     context.res = {
       status: 200,
-      jsonBody: {
+      headers: { "Content-Type": "application/json" },
+      body: {
         id: sub.Id,
         studentName: sub.StudentName,
         country: sub.Country,
@@ -46,6 +48,6 @@ module.exports = async function (context, req) {
   } catch (err) {
     context.log.error("getSubmission error", err);
     const message = err?.originalError?.info?.message || err?.message || "server error";
-    context.res = { status: 500, jsonBody: { error: message } };
+    context.res = { status: 500, headers: { "Content-Type": "application/json" }, body: { error: message } };
   }
 };
