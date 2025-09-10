@@ -120,7 +120,42 @@ const statGpa = document.getElementById('statGpa');
     const t = document.getElementById('toast');
     t.textContent = msg; t.style.display = 'block';
     setTimeout(() => t.style.display = 'none', ms);
+  }toast
+
+  function normalizePayload(p) {
+  const clean = s => String(s || '').trim().toLowerCase();
+  return {
+    studentName: clean(p.studentName),
+    country: clean(p.country),
+    courses: (p.courses || [])
+      .map(c => ({ title: clean(c.title), unit: Number(c.unit) || 0, score: Number(c.score) || 0 }))
+      .sort((a,b) => {
+        const t = a.title.localeCompare(b.title); if (t) return t;
+        if (a.unit !== b.unit) return a.unit - b.unit;
+        return a.score - b.score;
+      })
+  };
+}
+
+// cryptographic when available
+async function sha256Hex(str) {
+  if (window.crypto && crypto.subtle) {
+    const enc = new TextEncoder().encode(str);
+    const buf = await crypto.subtle.digest('SHA-256', enc);
+    return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join('');
   }
+  // Fallback: DJB2 (non-crypto) – stable enough for dedupe UI
+  let h = 5381;
+  for (let i=0;i<str.length;i++) h = ((h << 5) + h) + str.charCodeAt(i);
+  // return 8-hex for brevity (server still uses real SHA-256)
+  return (h >>> 0).toString(16).padStart(8,'0');
+}
+
+async function makeClientFingerprint(payload) {
+  const norm = normalizePayload(payload);
+  return sha256Hex(JSON.stringify(norm));
+}
+
 
   // rendering
   function render() { renderScale(); renderTable(); renderStats(); }

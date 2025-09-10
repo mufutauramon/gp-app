@@ -24,7 +24,6 @@ function makeFingerprint({ studentName = "", country = "nigeria", courses = [] }
         score: Number(c.score) || 0
       }))
       .sort((a,b) => {
-        // deterministic order: title, then unit, then score
         const ta = a.title.localeCompare(b.title);
         if (ta) return ta;
         if (a.unit !== b.unit) return a.unit - b.unit;
@@ -39,39 +38,36 @@ module.exports = async function (context, req) {
   try {
     const { studentName = "", country = "nigeria", scaleLegend = "", courses } = req.body || {};
 
-    // Basic validation
+    // Validate + reject duplicate courses in same submission
     if (!Array.isArray(courses) || courses.length === 0) {
       context.res = { status: 400, headers: { "Content-Type": "application/json" }, body: { error: "courses must be a non-empty array" } };
       return;
     }
+    const dupeCheck = new Set();
     for (const c of courses) {
-      if (!String(c?.title || "").trim()) {
-        context.res = { status: 400, headers: { "Content-Type": "application/json" }, body: { error: "title required" } };
-        return;
-      }
-      if (!(Number(c.unit) > 0)) {
-        context.res = { status: 400, headers: { "Content-Type": "application/json" }, body: { error: "unit must be > 0" } };
-        return;
-      }
+      if (!String(c?.title || "").trim()) { context.res = { status: 400, headers:{'Content-Type':'application/json'}, body:{ error:'title required' } }; return; }
+      if (!(Number(c.unit) > 0))       { context.res = { status: 400, headers:{'Content-Type':'application/json'}, body:{ error:'unit must be > 0' } }; return; }
       if (!(Number(c.score) >= 0 && Number(c.score) <= 100)) {
-        context.res = { status: 400, headers: { "Content-Type": "application/json" }, body: { error: "score must be 0–100" } };
-        return;
+        context.res = { status: 400, headers:{'Content-Type':'application/json'}, body:{ error:'score must be 0–100' } }; return;
       }
+      const key = `${String(c.title).trim().toLowerCase()}|${Number(c.unit)||0}|${Number(c.score)||0}`;
+      if (dupeCheck.has(key)) { context.res = { status: 409, headers:{'Content-Type':'application/json'}, body:{ error:'duplicate courses in request' } }; return; }
+      dupeCheck.add(key);
     }
 
     const fingerprint = makeFingerprint({ studentName, country, courses });
     const pool = await getPool();
 
-    // If fingerprint already exists, return existing id (no duplicate)
+    // If exists → 409 duplicate
     const r0 = await pool.request()
       .input("Fingerprint", sql.NVarChar(64), fingerprint)
       .query("SELECT TOP 1 Id FROM dbo.Submissions WHERE Fingerprint=@Fingerprint");
     if (r0.recordset.length) {
-      context.res = { status: 200, headers: { "Content-Type": "application/json" }, body: { id: r0.recordset[0].Id, duplicate: true } };
+      context.res = { status: 409, headers: { "Content-Type": "application/json" }, body: { id: r0.recordset[0].Id, duplicate: true } };
       return;
     }
 
-    // Insert new within a transaction
+    // Insert new within transaction
     const tx = new sql.Transaction(pool);
     await tx.begin();
     try {
@@ -104,13 +100,13 @@ module.exports = async function (context, req) {
       context.res = { status: 201, headers: { "Content-Type": "application/json" }, body: { id, duplicate: false } };
     } catch (err) {
       await tx.rollback();
-      // Handle race: unique index collision -> return existing id
+      // Unique index race – return existing as duplicate
       if (err && (err.number === 2627 || err.number === 2601)) {
         const r = await pool.request()
           .input("Fingerprint", sql.NVarChar(64), fingerprint)
           .query("SELECT TOP 1 Id FROM dbo.Submissions WHERE Fingerprint=@Fingerprint");
         if (r.recordset.length) {
-          context.res = { status: 200, headers: { "Content-Type": "application/json" }, body: { id: r.recordset[0].Id, duplicate: true } };
+          context.res = { status: 409, headers: { "Content-Type": "application/json" }, body: { id: r.recordset[0].Id, duplicate: true } };
           return;
         }
       }
