@@ -42,11 +42,13 @@
   </style>
 </head>
 <body>
-  <header>
-    <h1>Results Sheet</h1>
-    <button class="noprint" onclick="window.print()">Print</button>
-  </header>
-
+ <header>
+  <h1>Results Sheet</h1>
+  <div class="noprint" style="display:flex; gap:8px">
+    <a href="./index.html" class="backbtn">← Back to calculator</a>
+    <button onclick="window.print()">Print</button>
+  </div>
+</header>
   <section class="stats">
     <div><strong>Student:</strong> <span id="pStudent">—</span></div>
     <div id="pScaleRow"><strong>Scale:</strong> <span id="pScale">—</span></div>

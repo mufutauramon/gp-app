@@ -63,3 +63,8 @@ button.secondary{background:#0b1220}
   border-radius:8px;
 }
 .scale-list .badge{ font-weight:600; }
+.backbtn{
+  display:inline-block; padding:10px 12px; border-radius:8px;
+  border:1px solid var(--muted); background:#0b1220; color:var(--text); text-decoration:none;
+}
+.backbtn:hover{ border-color:var(--accent); }

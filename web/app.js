@@ -81,9 +81,9 @@
     studentName: '',
     country: 'nigeria',
     courses: [
-      { id: uid(), title: 'Introduction to Data Engineering', unit: 3, score: 75 },
-      { id: uid(), title: 'Design of Pipelines', unit: 3, score: 62 },
-      { id: uid(), title: 'Introduction to Power BI', unit: 2, score: 58 },
+    //   { id: uid(), title: 'Introduction to Data Engineering', unit: 3, score: 75 },
+    //   { id: uid(), title: 'Design of Pipelines', unit: 3, score: 62 },
+    //   { id: uid(), title: 'Introduction to Power BI', unit: 2, score: 58 },
     ]
   };
 
@@ -144,6 +144,15 @@ const statGpa = document.getElementById('statGpa');
 
   function renderTable() {
     tbody.innerHTML = '';
+    if (state.courses.length === 0) {
+    const tr = document.createElement('tr');
+  tr.innerHTML = `<td colspan="6" style="padding:16px; color:#9ca3af">
+    No courses yet. Click <strong>Add course</strong> to begin.
+  </td>`;
+  tbody.appendChild(tr);
+  return;
+}
+
     state.courses.forEach((c) => {
       const tr = rowTpl.content.firstElementChild.cloneNode(true);
       const titleEl = tr.querySelector('.title');
@@ -197,7 +206,7 @@ const statGpa = document.getElementById('statGpa');
   function resetAll() {
     state.studentName = ''; nameInput.value = '';
     state.country = 'nigeria'; countrySelect.value = 'nigeria';
-    state.courses = [{ id: uid(), title: '', unit: 3, score: 0 }];
+    state.courses = [];
     render();
   }
 
