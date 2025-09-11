@@ -19,18 +19,17 @@ module.exports = async function (context, req) {
     }
     const pool = await getPool();
 
-    // alias columns to camelCase the frontend expects
+    // Get the submission (for student + country)
     const rSub = await pool.request()
       .input("Id", sql.UniqueIdentifier, id)
       .query(`
-        select
-          Id,
-          StudentName as studentName,
-          Country     as country,
-          ScaleLegend as scaleLegend,
-          CreatedAt
-        from dbo.Submissions
-        where Id=@Id
+        SELECT Id,
+               StudentName AS studentName,
+               Country     AS country,
+               ScaleLegend AS scaleLegend,
+               CreatedAt
+        FROM dbo.Submissions
+        WHERE Id=@Id
       `);
 
     if (rSub.recordset.length === 0) {
@@ -39,16 +38,15 @@ module.exports = async function (context, req) {
     }
     const sub = rSub.recordset[0];
 
+    // Consolidated courses for this student (no duplicates)
+    const studentKey = (sub.studentName || '').trim().toLowerCase() + '|' + (sub.country || '').trim().toLowerCase();
     const rCourses = await pool.request()
-      .input("SubmissionId", sql.UniqueIdentifier, id)
+      .input("StudentKey", sql.NVarChar(256), studentKey)
       .query(`
-        select
-          Title as title,
-          Unit  as unit,
-          Score as score
-        from dbo.Courses
-        where SubmissionId=@SubmissionId
-        order by Id
+        SELECT Title AS title, Unit AS unit, Score AS score
+        FROM dbo.Courses
+        WHERE StudentKey=@StudentKey
+        ORDER BY Title
       `);
 
     context.res = {

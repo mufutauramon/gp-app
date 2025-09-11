@@ -12,6 +12,7 @@ function getPool() {
   return poolPromise;
 }
 
+// fingerprint to avoid exact whole-submission duplicates (optional but kept)
 function makeFingerprint({ studentName = "", country = "nigeria", courses = [] }) {
   const clean = (s) => String(s || "").trim().toLowerCase();
   const norm = {
@@ -30,15 +31,18 @@ function makeFingerprint({ studentName = "", country = "nigeria", courses = [] }
         return a.score - b.score;
       })
   };
-  const json = JSON.stringify(norm);
-  return crypto.createHash("sha256").update(json).digest("hex");
+  return crypto.createHash("sha256").update(JSON.stringify(norm)).digest("hex");
 }
 
 module.exports = async function (context, req) {
   try {
     const { studentName = "", country = "nigeria", scaleLegend = "", courses } = req.body || {};
 
-    // Validate + reject duplicate courses in same submission
+    // Validate
+    if (!studentName.trim()) {
+      context.res = { status: 400, headers: { "Content-Type": "application/json" }, body: { error: "studentName required" } };
+      return;
+    }
     if (!Array.isArray(courses) || courses.length === 0) {
       context.res = { status: 400, headers: { "Content-Type": "application/json" }, body: { error: "courses must be a non-empty array" } };
       return;
@@ -55,19 +59,30 @@ module.exports = async function (context, req) {
       dupeCheck.add(key);
     }
 
-    const fingerprint = makeFingerprint({ studentName, country, courses });
     const pool = await getPool();
 
-    // If exists → 409 duplicate
+    // Dedup whole submission by fingerprint (optional)
+    const fingerprint = makeFingerprint({ studentName, country, courses });
     const r0 = await pool.request()
       .input("Fingerprint", sql.NVarChar(64), fingerprint)
       .query("SELECT TOP 1 Id FROM dbo.Submissions WHERE Fingerprint=@Fingerprint");
     if (r0.recordset.length) {
-      context.res = { status: 409, headers: { "Content-Type": "application/json" }, body: { id: r0.recordset[0].Id, duplicate: true } };
+      const existingId = r0.recordset[0].Id;
+      // Return consolidated courses for the student
+      const studentKey = (studentName || '').trim().toLowerCase() + '|' + (country || '').trim().toLowerCase();
+      const rAgg = await pool.request()
+        .input("StudentKey", sql.NVarChar(256), studentKey)
+        .query(`SELECT Title as title, Unit as unit, Score as score
+                FROM dbo.Courses WHERE StudentKey=@StudentKey ORDER BY Title`);
+      context.res = {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+        body: { id: existingId, studentName, country, scaleLegend, courses: rAgg.recordset }
+      };
       return;
     }
 
-    // Insert new within transaction
+    // Insert submission + UPSERT courses per student
     const tx = new sql.Transaction(pool);
     await tx.begin();
     try {
@@ -82,31 +97,68 @@ module.exports = async function (context, req) {
           VALUES (@StudentName, @Country, @ScaleLegend, @Fingerprint);
         `);
 
-      const id = r1.recordset[0].Id;
+      const submissionId = r1.recordset[0].Id;
+      const studentKey = (studentName || '').trim().toLowerCase() + '|' + (country || '').trim().toLowerCase();
 
       for (const c of courses) {
+        const title = String(c.title || "").trim();
+        const unit  = Number(c.unit) || 0;
+        const score = Number(c.score) || 0;
+        const titleKey = title.toLowerCase();
+
+        // UPSERT: update if exists for this student+title; else insert new
         await new sql.Request(tx)
-          .input("SubmissionId", sql.UniqueIdentifier, id)
-          .input("Title", sql.NVarChar(200), String(c.title || ""))
-          .input("Unit", sql.Int, Number(c.unit) || 0)
-          .input("Score", sql.Int, Number(c.score) || 0)
+          .input("StudentKey", sql.NVarChar(256), studentKey)
+          .input("TitleKey", sql.NVarChar(256), titleKey)
+          .input("SubmissionId", sql.UniqueIdentifier, submissionId)
+          .input("Title", sql.NVarChar(200), title)
+          .input("Unit", sql.Int, unit)
+          .input("Score", sql.Int, score)
           .query(`
-            INSERT INTO dbo.Courses (SubmissionId, Title, Unit, Score)
-            VALUES (@SubmissionId, @Title, @Unit, @Score);
+            UPDATE dbo.Courses
+               SET Unit=@Unit, Score=@Score, SubmissionId=@SubmissionId
+             WHERE StudentKey=@StudentKey AND TitleKey=@TitleKey;
+
+            IF @@ROWCOUNT = 0
+            BEGIN
+              INSERT INTO dbo.Courses (SubmissionId, Title, Unit, Score, StudentKey, TitleKey)
+              VALUES (@SubmissionId, @Title, @Unit, @Score, @StudentKey, @TitleKey);
+            END
           `);
       }
 
       await tx.commit();
-      context.res = { status: 201, headers: { "Content-Type": "application/json" }, body: { id, duplicate: false } };
+
+      // Return consolidated courses for the student
+      const rAgg = await pool.request()
+        .input("StudentKey", sql.NVarChar(256), studentKey)
+        .query(`SELECT Title as title, Unit as unit, Score as score
+                FROM dbo.Courses WHERE StudentKey=@StudentKey ORDER BY Title`);
+
+      context.res = {
+        status: 201,
+        headers: { "Content-Type": "application/json" },
+        body: { id: submissionId, studentName, country, scaleLegend, courses: rAgg.recordset }
+      };
     } catch (err) {
       await tx.rollback();
-      // Unique index race – return existing as duplicate
+      // If we hit the unique index on Fingerprint concurrently, return existing
       if (err && (err.number === 2627 || err.number === 2601)) {
         const r = await pool.request()
           .input("Fingerprint", sql.NVarChar(64), fingerprint)
           .query("SELECT TOP 1 Id FROM dbo.Submissions WHERE Fingerprint=@Fingerprint");
         if (r.recordset.length) {
-          context.res = { status: 409, headers: { "Content-Type": "application/json" }, body: { id: r.recordset[0].Id, duplicate: true } };
+          const existingId = r.recordset[0].Id;
+          const studentKey = (studentName || '').trim().toLowerCase() + '|' + (country || '').trim().toLowerCase();
+          const rAgg = await pool.request()
+            .input("StudentKey", sql.NVarChar(256), studentKey)
+            .query(`SELECT Title as title, Unit as unit, Score as score
+                    FROM dbo.Courses WHERE StudentKey=@StudentKey ORDER BY Title`);
+          context.res = {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+            body: { id: existingId, studentName, country, scaleLegend, courses: rAgg.recordset }
+          };
           return;
         }
       }
