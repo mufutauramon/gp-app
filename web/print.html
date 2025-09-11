@@ -23,9 +23,16 @@
     .stat { background:#0e1628; border:1px solid #1f2937; padding:10px 12px; border-radius:8px; }
     .logo { height:48px; width:auto; border-radius:6px; border:1px solid #243142; display:none; }
     footer { margin-top: 28px; }
-    .scale-vert { display:grid; grid-template-columns: 1fr 1fr 1fr; gap:6px 12px; }
-    .scale-vert .badge { display:inline-block; min-width:36px; text-align:center; border-radius:8px; border:1px solid #2b3141; padding:2px 8px; background:#0e1628; margin-right:8px; }
-    .muted { color:#9ca3af; }
+     .scale-vert {
+    display: grid;
+    grid-template-columns: 1fr; /* single column = vertical */
+    gap: 6px 12px;
+  }
+  .scale-vert .badge {
+    display:inline-block; min-width:36px; text-align:center;
+    border-radius:8px; border:1px solid #2b3141; padding:2px 8px;
+    background:#0e1628; margin-right:8px;
+  }
     @media print{
       .noprint { display:none !important; }
       body { background:#fff; color:#000; }
@@ -60,8 +67,8 @@
     <table class="grid">
       <thead>
         <tr>
-          <th>Course</th>
-          <th>Code</th>
+          <th>Course Code</th>
+          <th>Course <Title></Title></th>
           <th>Units</th>
           <th>Score</th>
           <th>Grade</th>
@@ -241,14 +248,15 @@
       if (unit > 0) { totalUnits += unit; qualityPoints += unit * points; }
 
       const tr = document.createElement('tr');
-      tr.innerHTML = `
-        <td>${escapeHtml(c.title || '')}</td>
-        <td>${escapeHtml(c.courseCode || '')}</td>
-        <td>${unit}</td>
-        <td>${score}</td>
-        <td>${letter}</td>
-        <td>${points}</td>
-      `;
+     tr.innerHTML = `
+    <td>${escapeHtml(c.courseCode || '')}</td>
+    <td>${escapeHtml(c.title || '')}</td>
+    <td>${unit}</td>
+    <td>${score}</td>
+    <td>${letter}</td>
+    <td>${points}</td>
+    `;
+
       tbody.appendChild(tr);
     });
 
