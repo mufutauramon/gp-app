@@ -300,80 +300,80 @@
     return true;
   }
 
-  // ---------------- Submit (with duplicate prevention) ----------------
   async function onSubmit() {
-    try {
-      if (submitting) return; // block double-clicks
-      if (!validate()) return;
+  try {
+    if (submitting) return;          // block double-clicks
+    if (!validate()) return;
 
-      submitting = true;
-      const btn = document.getElementById('submitBtn');
-      if (btn) { btn.disabled = true; btn.textContent = 'Submitting...'; }
-
-      const payload = serializeState();
-      const fp = await makeClientFingerprint(payload);
-
-      // Short-circuit if identical to last saved
-      try {
-        const last = JSON.parse(localStorage.getItem(LAST_SAVED_KEY) || 'null');
-        if (last && last.fp === fp && last.id) {
-          toast('No changes detected. Opening your existing result…', 3000);
-          sessionStorage.setItem(STORAGE_KEY, JSON.stringify({ id: last.id, payload }));
-          window.location.href = `./print.html?id=${encodeURIComponent(last.id)}`;
-          return;
-        }
-      } catch {}
-
-      // POST to backend
-      const res = await fetch(`${API_BASE}/submissions`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-cache' },
-        body: JSON.stringify(payload)
-      });
-
-      const status = res.status;
-      const text = await res.text();
-      let data = {};
-      try { data = text ? JSON.parse(text) : {}; } catch { /* ignore parse error */ }
-
-      // Duplicate (server indicates with 409 or 200 + duplicate:true)
-      if (status === 409) {
-        const existingId = data?.id || (JSON.parse(localStorage.getItem(LAST_SAVED_KEY) || 'null') || {}).id;
-        if (existingId) {
-          toast('This submission already exists. Opening saved copy…', 3000);
-          localStorage.setItem(LAST_SAVED_KEY, JSON.stringify({ fp, id: existingId }));
-          sessionStorage.setItem(STORAGE_KEY, JSON.stringify({ id: existingId, payload }));
-          window.location.href = `./print.html?id=${encodeURIComponent(existingId)}`;
-          return;
-        } else {
-          toast('This submission already exists.', 3000);
-          resetSubmitBtn();
-          return;
-        }
-      }
-
-      if ((status === 200 || status === 201) && data && data.id) {
-        if (data.duplicate) toast('This submission already exists. Opening saved copy…', 3000);
-        localStorage.setItem(LAST_SAVED_KEY, JSON.stringify({ fp, id: data.id }));
-        sessionStorage.setItem(STORAGE_KEY, JSON.stringify({ id: data.id, payload }));
-        window.location.href = `./print.html?id=${encodeURIComponent(data.id)}`;
-        return;
-      }
-
-      // Failure
-      alert('Save failed: ' + (text || status));
-      resetSubmitBtn();
-    } catch (e) {
-      alert('Network error: ' + e.message);
-      resetSubmitBtn();
-    }
-  }
-
-  function resetSubmitBtn() {
-    submitting = false;
+    submitting = true;
     const btn = document.getElementById('submitBtn');
-    if (btn) { btn.disabled = false; btn.textContent = 'Submit'; }
+    if (btn) { btn.disabled = true; btn.textContent = 'Submitting...'; }
+
+    const payload = serializeState();
+    const fp = await makeClientFingerprint(payload);
+
+    // ---- Pre-submit short-circuit: identical to last saved
+    let last = null;
+    try { last = JSON.parse(localStorage.getItem(LAST_SAVED_KEY) || 'null'); } catch {}
+    if (last && last.fp === fp && last.id) {
+      toast('No changes detected. Opening your existing result…', 3000);
+      sessionStorage.setItem(STORAGE_KEY, JSON.stringify({ id: last.id, payload }));
+      window.location.href = `./print.html?id=${encodeURIComponent(last.id)}`;
+      return;
+    }
+
+    // ---- Send to backend
+    const res = await fetch(`${API_BASE}/submissions`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-cache' },
+      body: JSON.stringify(payload)
+    });
+
+    const status = res.status;
+    const text = await res.text();
+    let data = {};
+    try { data = text ? JSON.parse(text) : {}; } catch {}
+
+    // Normalize fields we depend on
+    const returnedId = data && data.id ? data.id : null;
+    const serverSaysDuplicate = !!data.duplicate || status === 409;
+
+    // ---- Post-submit classification (works even if server only returns 200)
+    // Refresh 'last' in case it changed during submit
+    try { last = JSON.parse(localStorage.getItem(LAST_SAVED_KEY) || 'null'); } catch {}
+
+    if (returnedId) {
+      // same id + same fp == truly no change (e.g., re-submit)
+      const sameAsLast = !!(last && last.fp === fp && last.id === returnedId);
+
+      if (serverSaysDuplicate && !sameAsLast) {
+        toast('This submission already exists. Opening saved copy…', 3000);
+      } else if (sameAsLast) {
+        toast('No changes detected. Opening your existing result…', 3000);
+      }
+      // Save as the latest known mapping and go to print
+      localStorage.setItem(LAST_SAVED_KEY, JSON.stringify({ fp, id: returnedId }));
+      sessionStorage.setItem(STORAGE_KEY, JSON.stringify({ id: returnedId, payload }));
+      window.location.href = `./print.html?id=${encodeURIComponent(returnedId)}`;
+      return;
+    }
+
+    // If we got a 409 with no id, try to fall back to last id
+    if (status === 409 && last?.id) {
+      toast('This submission already exists. Opening saved copy…', 3000);
+      sessionStorage.setItem(STORAGE_KEY, JSON.stringify({ id: last.id, payload }));
+      window.location.href = `./print.html?id=${encodeURIComponent(last.id)}`;
+      return;
+    }
+
+    // Anything else => failure
+    alert('Save failed: ' + (text || status));
+    resetSubmitBtn();
+  } catch (e) {
+    alert('Network error: ' + e.message);
+    resetSubmitBtn();
   }
+}
 
   // ---------------- Disclaimer (optional hide for session) ----------------
   (function initDisclaimer(){
