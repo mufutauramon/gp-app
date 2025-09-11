@@ -1,22 +1,22 @@
-let sql;
+const sql = require("mssql");
+
+let poolPromise;
+function getPool() {
+  const cs = process.env.SQL_CONNECTION;
+  if (!cs) throw new Error("SQL_CONNECTION env var not set on Static Web App");
+  if (!poolPromise) {
+    poolPromise = new sql.ConnectionPool(cs).connect().catch(err => { poolPromise = null; throw err; });
+  }
+  return poolPromise;
+}
+
 module.exports = async function (context, req) {
   try {
-    try { sql = sql || require("mssql"); }
-    catch (e) {
-      context.res = { status: 500, headers: { "Content-Type": "application/json" }, body: { error: "mssql module not installed", detail: String(e) } };
-      return;
-    }
-
-    if (!process.env.SQL_CONNECTION) {
-      context.res = { status: 500, headers: { "Content-Type": "application/json" }, body: { error: "SQL_CONNECTION not set on Static Web App" } };
-      return;
-    }
-
-    context._pool = context._pool || await new sql.ConnectionPool(process.env.SQL_CONNECTION).connect();
-    const r = await context._pool.request().query("select cast(1 as int) as ok");
-    context.res = { status: 200, headers: { "Content-Type": "application/json" }, body: { ok: r.recordset[0].ok } };
-  } catch (e) {
-    context.log.error(e);
-    context.res = { status: 500, headers: { "Content-Type": "application/json" }, body: { error: String(e) } };
+    const pool = await getPool();
+    const r = await pool.request().query("SELECT DB_NAME() AS db, GETUTCDATE() AS now");
+    context.res = { status: 200, headers: { "Content-Type": "application/json" }, body: r.recordset[0] };
+  } catch (err) {
+    context.log.error("ping-sql error", err);
+    context.res = { status: 500, headers: { "Content-Type": "application/json" }, body: { error: err.message || "server error" } };
   }
 };

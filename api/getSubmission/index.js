@@ -1,11 +1,11 @@
 const sql = require("mssql");
+
 let poolPromise;
 function getPool() {
-  if (!process.env.SQL_CONNECTION) throw new Error("SQL_CONNECTION env var not set on Static Web App");
+  const cs = process.env.SQL_CONNECTION;
+  if (!cs) throw new Error("SQL_CONNECTION env var not set on Static Web App");
   if (!poolPromise) {
-    poolPromise = new sql.ConnectionPool(process.env.SQL_CONNECTION)
-      .connect()
-      .catch(err => { poolPromise = null; throw err; });
+    poolPromise = new sql.ConnectionPool(cs).connect().catch(err => { poolPromise = null; throw err; });
   }
   return poolPromise;
 }
@@ -14,7 +14,7 @@ module.exports = async function (context, req) {
   try {
     const id = context.bindingData.id;
     if (!id || !/^[0-9a-fA-F-]{36}$/.test(id)) {
-      context.res = { status: 400, headers: { "Content-Type": "application/json" }, body: { error: "invalid id" } };
+      context.res = { status: 400, headers:{ "Content-Type":"application/json" }, body: { error: "invalid id" } };
       return;
     }
     const pool = await getPool();
@@ -31,9 +31,8 @@ module.exports = async function (context, req) {
         FROM dbo.Submissions
         WHERE Id=@Id
       `);
-
-    if (rSub.recordset.length === 0) {
-      context.res = { status: 404, headers: { "Content-Type": "application/json" }, body: { error: "not found" } };
+    if (!rSub.recordset.length) {
+      context.res = { status: 404, headers:{ "Content-Type":"application/json" }, body: { error: "not found" } };
       return;
     }
     const sub = rSub.recordset[0];
@@ -49,21 +48,12 @@ module.exports = async function (context, req) {
       `);
 
     context.res = {
-      status: 200,
-      headers: { "Content-Type": "application/json" },
-      body: {
-        id: sub.Id,
-        studentName: sub.studentName,
-        country: sub.country,
-        scaleLegend: sub.scaleLegend,
-        universityName: sub.universityName,
-        universityLogoUrl: sub.universityLogoUrl,
-        courses: rCourses.recordset
-      }
+      status: 200, headers:{ "Content-Type":"application/json" },
+      body: { id: sub.Id, studentName: sub.studentName, country: sub.country, scaleLegend: sub.scaleLegend, universityName: sub.universityName, universityLogoUrl: sub.universityLogoUrl, courses: rCourses.recordset }
     };
   } catch (err) {
     context.log.error("getSubmission error", err);
     const message = err?.originalError?.info?.message || err?.message || "server error";
-    context.res = { status: 500, headers: { "Content-Type": "application/json" }, body: { error: message } };
+    context.res = { status: 500, headers:{ "Content-Type":"application/json" }, body: { error: message } };
   }
 };

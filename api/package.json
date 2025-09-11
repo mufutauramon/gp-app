@@ -1,7 +1,10 @@
 {
-  "name": "api",
+  "name": "gpa-api",
   "version": "1.0.0",
   "private": true,
+  "main": "index.js",
+  "license": "MIT",
+  "engines": { "node": ">=18" },
   "dependencies": {
     "mssql": "^9.1.1"
   }
