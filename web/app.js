@@ -1,7 +1,13 @@
 'use strict';
 
 (function () {
-  // ---------------- Grading scales ----------------
+  // ---------- Config ----------
+  const API_BASE = '/api';
+  const STORAGE_KEY = 'gpa_last_submission';
+  const LAST_SAVED_KEY = 'gpa_last_saved_fp';
+  let submitting = false;
+
+  // ---------- Scales & semesters ----------
   const SCALES = {
     nigeria: [
       { letter: 'A', min: 70, points: 5 },
@@ -73,7 +79,6 @@
       { letter: 'F',  min: 0,  points: 0.0 },
     ]
   };
-
   const SEMESTERS = {
     nigeria: ['First Semester', 'Second Semester'],
     us: ['Fall', 'Spring', 'Winter'],
@@ -81,12 +86,7 @@
     default: ['Term 1', 'Term 2']
   };
 
-  // ---------------- Constants & state ----------------
-  const API_BASE = '/api';
-  const STORAGE_KEY = 'gpa_last_submission';
-  const LAST_SAVED_KEY = 'gpa_last_saved_fp';
-  let submitting = false;
-
+  // ---------- State ----------
   const state = {
     studentName: '',
     country: 'nigeria',
@@ -94,10 +94,10 @@
     academicYear: '',
     universityName: '',
     universityLogoUrl: '',
-    courses: []
+    courses: [] // user adds rows
   };
 
-  // ---------------- Elements ----------------
+  // ---------- Elements ----------
   const tbody = document.getElementById('tbody');
   const rowTpl = document.getElementById('row-template');
   const nameInput = document.getElementById('studentName');
@@ -114,93 +114,48 @@
   const statGpa = document.getElementById('statGpa');
   const changeBox = document.getElementById('changeSummary');
 
-  // Modal elements
-  const modalBackdrop = document.getElementById('scoreModalBackdrop');
-  const modalInput = document.getElementById('scoreModalInput');
-  const modalOk = document.getElementById('scoreOk');
-  const modalCancel = document.getElementById('scoreCancel');
-  let modalCourseRef = null; // store course object being edited
-
   // Buttons
   document.getElementById('addBtn')?.addEventListener('click', addCourse);
   document.getElementById('resetBtn')?.addEventListener('click', resetAll);
   document.getElementById('printBtn')?.addEventListener('click', () => window.print());
-  document.getElementById('submitBtn')?.addEventListener('click', onSubmit);
+  document.getElementById('submitBtn')?.addEventListener('click', (e) => { e.preventDefault(); onSubmit(); });
 
   // Inputs
   nameInput?.addEventListener('input', () => { state.studentName = nameInput.value; renderStats(); });
-  countrySelect?.addEventListener('change', () => {
-    state.country = countrySelect.value;
-    refreshSemesterOptions();
-    renderScale(); renderTable(); renderStats();
-  });
+  countrySelect?.addEventListener('change', () => { state.country = countrySelect.value; refreshSemesterOptions(); renderScale(); renderTable(); renderStats(); });
   semesterSelect?.addEventListener('change', () => { state.semester = semesterSelect.value; });
   yearInput?.addEventListener('input', () => { state.academicYear = yearInput.value; });
   uniInput?.addEventListener('input', () => { state.universityName = uniInput.value; });
   logoInput?.addEventListener('input', () => { state.universityLogoUrl = logoInput.value; updateLogoPreview(); });
 
-  // Modal wiring
-  modalOk?.addEventListener('click', () => {
-    const v = Number(modalInput.value);
-    if (!Number.isFinite(v) || v < 0 || v > 100) { toast('Enter a score 0–100'); return; }
-    if (modalCourseRef) modalCourseRef.score = v;
-    closeScoreModal();
-    renderTable(); renderStats();
-  });
-  modalCancel?.addEventListener('click', () => { closeScoreModal(); });
-
-  // ---------------- Helpers ----------------
-  function uid() { return Math.random().toString(36).slice(2, 10); }
-  function currentScale() { return SCALES[state.country]; }
-  function maxPoints() { return Math.max(...currentScale().map(r => Number(r.points) || 0)); }
-
-  function refreshSemesterOptions() {
-    const opts = SEMESTERS[state.country] || SEMESTERS.default;
-    semesterSelect.innerHTML = '';
-    opts.forEach(v => {
-      const o = document.createElement('option');
-      o.value = v; o.textContent = v;
-      semesterSelect.appendChild(o);
-    });
-    if (!state.semester || !opts.includes(state.semester)) {
-      state.semester = opts[0];
-    }
-    semesterSelect.value = state.semester;
+  // ---------- Helpers ----------
+  function goToPrint(id) {
+    const url = new URL('/print.html', window.location.origin);
+    if (id) url.searchParams.set('id', id);
+    console.log('Redirecting to', url.toString());
+    window.location.assign(url.toString());
   }
-
+  function uid() { return Math.random().toString(36).slice(2, 10); }
+  function currentScale() { return SCALES[state.country] || SCALES.nigeria; }
+  function maxPoints() { return Math.max(...currentScale().map(r => Number(r.points) || 0)); }
   function gradeFromScore(score) {
     const n = Number(score);
     if (!Number.isFinite(n) || n < 0 || n > 100) return { letter: '—', points: 0 };
     const band = [...currentScale()].sort((a,b) => b.min - a.min).find(r => n >= r.min);
     return band ? { letter: band.letter, points: Number(band.points) } : { letter: '—', points: 0 };
   }
-
   function scaleSummaryText() {
-    return [...currentScale()]
-      .sort((a,b)=>b.min-a.min)
-      .map(r => `${r.letter}≥${r.min}→${r.points}`)
-      .join(', ');
+    return [...currentScale()].sort((a,b)=>b.min-a.min).map(r => `${r.letter}≥${r.min}→${r.points}`).join(', ');
   }
-
   function toast(msg, ms=2200) {
-    const t = document.getElementById('toast');
-    if (!t) { alert(msg); return; }
-    t.textContent = msg;
-    t.style.display = 'block';
-    setTimeout(()=> t.style.display='none', ms);
+    const t = document.getElementById('toast'); if (!t) { alert(msg); return; }
+    t.textContent = msg; t.style.display = 'block'; setTimeout(()=> t.style.display='none', ms);
   }
-
   function cleanLogoUrl(u) {
-    const s = String(u || '').trim();
-    if (!s) return '';
-    try {
-      const url = new URL(s);
-      if (url.protocol !== 'http:' && url.protocol !== 'https:') return '';
-      if (s.length > 1000) return '';
-      return s;
-    } catch { return ''; }
+    const s = String(u || '').trim(); if (!s) return '';
+    try { const url = new URL(s); if (!/^https?:$/.test(url.protocol)) return ''; if (s.length > 1000) return ''; return s; }
+    catch { return ''; }
   }
-
   function updateLogoPreview() {
     if (!logoPreview) return;
     const url = cleanLogoUrl(logoInput?.value);
@@ -209,59 +164,43 @@
     logoPreview.onerror = () => { logoPreview.style.display='none'; logoPreview.removeAttribute('src'); };
     logoPreview.src = url;
   }
-
-  // Modal helpers
-  function openScoreModal(courseObj){
-    modalCourseRef = courseObj;
-    modalInput.value = Number(courseObj.score ?? 0);
-    modalBackdrop.style.display = 'flex';
-    setTimeout(()=> modalInput.focus(), 0);
-  }
-  function closeScoreModal(){
-    modalCourseRef = null;
-    modalBackdrop.style.display = 'none';
+  function refreshSemesterOptions() {
+    const opts = SEMESTERS[state.country] || SEMESTERS.default;
+    semesterSelect.innerHTML = '';
+    opts.forEach(v => {
+      const o = document.createElement('option');
+      o.value = o.textContent = v; semesterSelect.appendChild(o);
+    });
+    if (!state.semester || !opts.includes(state.semester)) state.semester = opts[0];
+    semesterSelect.value = state.semester;
   }
 
-  // ---------------- Rendering ----------------
-  function render() {
-    refreshSemesterOptions();
-    renderScale();
-    renderTable();
-    renderStats();
-    updateLogoPreview();
-  }
-
+  // ---------- Rendering ----------
+  function render() { refreshSemesterOptions(); renderScale(); renderTable(); renderStats(); updateLogoPreview(); }
   function renderScale() {
     scaleList.innerHTML = '';
     countrySelect.value = state.country;
     scaleSummary.textContent = 'Scale: ' + scaleSummaryText();
     const ranges = [...currentScale()].sort((a,b) => b.min - a.min);
     ranges.forEach(r => {
-      const li = document.createElement('div');
-      li.innerHTML = `
-        <span class="badge">${r.letter}</span>
-        <span>min ${r.min}</span>
-        <span class="muted">${Number(r.points)} pts</span>
-      `;
-      scaleList.appendChild(li);
+      const row = document.createElement('div');
+      row.innerHTML = `<span class="badge">${r.letter}</span> <span>min ${r.min}</span> <span class="muted">${Number(r.points)} pts</span>`;
+      scaleList.appendChild(row);
     });
   }
-
   function renderTable() {
     tbody.innerHTML = '';
-
     if (state.courses.length === 0) {
       const tr = document.createElement('tr');
       tr.innerHTML = `<td colspan="7" class="muted">No courses yet. Click <strong>Add course</strong> to begin.</td>`;
       tbody.appendChild(tr);
       return;
     }
-
-    state.courses.forEach((c) => {
+    state.courses.forEach(c => {
       const tr = rowTpl.content.firstElementChild.cloneNode(true);
-      const codeEl   = tr.querySelector('.code');
-      const titleEl  = tr.querySelector('.title');
-      const unitEl   = tr.querySelector('.unit');
+      const codeEl = tr.querySelector('.code');
+      const titleEl = tr.querySelector('.title');
+      const unitEl = tr.querySelector('.unit');
       const scoreBtn = tr.querySelector('.score-btn');
       const letterEl = tr.querySelector('.letter');
       const pointsEl = tr.querySelector('.points');
@@ -278,62 +217,53 @@
 
       if (!(Number(c.unit) > 0)) unitEl.classList.add('invalid'); else unitEl.classList.remove('invalid');
 
-      codeEl.addEventListener('input', (e)  => { c.courseCode = e.target.value; });
-      titleEl.addEventListener('input', (e) => { c.title = e.target.value; });
-      unitEl.addEventListener('input', (e)  => { c.unit = e.target.valueAsNumber; renderStats(); renderTable(); });
-      scoreBtn.addEventListener('click', ()   => { openScoreModal(c); });
-
-      removeBtn.addEventListener('click', () => removeCourse(c.id));
+      codeEl.addEventListener('input', e => { c.courseCode = e.target.value; });
+      titleEl.addEventListener('input', e => { c.title = e.target.value; });
+      unitEl.addEventListener('input', e => { c.unit = e.target.valueAsNumber; renderStats(); renderTable(); });
+      scoreBtn.addEventListener('click', () => openScoreModal(c));
+      removeBtn.addEventListener('click', () => { state.courses = state.courses.filter(x => x !== c); render(); });
 
       tbody.appendChild(tr);
     });
   }
-
   function renderStats() {
     const totals = state.courses.reduce((acc, c) => {
-      const unit = Number(c.unit);
-      const score = Number(c.score);
+      const unit = Number(c.unit), score = Number(c.score);
       if (Number.isFinite(unit) && unit > 0 && Number.isFinite(score)) {
         const { points } = gradeFromScore(score);
-        acc.units += unit;
-        acc.quality += unit * points;
+        acc.units += unit; acc.quality += unit * points;
       }
       return acc;
     }, { units: 0, quality: 0 });
-
     const gpa = totals.units > 0 ? (totals.quality / totals.units) : 0;
     statStudent.textContent = state.studentName?.trim() || '—';
     statUnits.textContent = String(totals.units);
     statGpa.textContent = `${gpa.toFixed(2)} / ${maxPoints().toFixed(2)}`;
   }
 
-  // ---------------- Actions ----------------
-  function addCourse() {
-    state.courses.push({ id: uid(), courseCode: '', title: '', unit: 3, score: 0 });
-    render();
-  }
+  // ---------- Modal (score) ----------
+  const modalBackdrop = document.getElementById('scoreModalBackdrop');
+  const modalInput = document.getElementById('scoreModalInput');
+  const modalOk = document.getElementById('scoreOk');
+  const modalCancel = document.getElementById('scoreCancel');
+  let modalCourseRef = null;
 
-  function removeCourse(id) {
-    state.courses = state.courses.filter(c => c.id !== id);
-    render();
+  function openScoreModal(courseObj){
+    modalCourseRef = courseObj;
+    modalInput.value = Number(courseObj.score ?? 0);
+    modalBackdrop.style.display = 'flex';
+    setTimeout(()=> modalInput.focus(), 0);
   }
+  function closeScoreModal(){ modalCourseRef = null; modalBackdrop.style.display = 'none'; }
+  modalOk?.addEventListener('click', () => {
+    const v = Number(modalInput.value);
+    if (!Number.isFinite(v) || v < 0 || v > 100) { toast('Enter a score 0–100'); return; }
+    if (modalCourseRef) modalCourseRef.score = v;
+    closeScoreModal(); renderTable(); renderStats();
+  });
+  modalCancel?.addEventListener('click', closeScoreModal);
 
-  function resetAll() {
-    state.studentName = '';
-    nameInput && (nameInput.value = '');
-    state.country = 'nigeria';
-    countrySelect && (countrySelect.value = 'nigeria');
-    refreshSemesterOptions();
-    state.academicYear = '';
-    yearInput && (yearInput.value = '');
-    state.universityName = '';
-    uniInput && (uniInput.value = '');
-    state.universityLogoUrl = '';
-    logoInput && (logoInput.value = '');
-    state.courses = [];
-    render();
-  }
-
+  // ---------- Validation & serialization ----------
   function serializeState() {
     return {
       studentName: state.studentName || "",
@@ -351,32 +281,27 @@
       scaleLegend: scaleSummaryText()
     };
   }
-
   function validate() {
     if (!state.studentName.trim()) { toast('Please enter student name'); return false; }
     if (!state.courses.length) { toast('Add at least one course'); return false; }
-
-    // Year: allow 4-digit or "YYYY/YY"
     const y = (state.academicYear || '').trim();
-    if (y && !/^\d{4}([\/-]\d{2})?$/.test(y)) {
-      toast('Year format: 2025 or 2024/25'); return false;
-    }
+    if (y && !/^\d{4}([\/-]\d{2})?$/.test(y)) { toast('Year format: 2025 or 2024/25'); return false; }
 
     const seen = new Set();
     for (const c of state.courses) {
-      const title = String(c.title || '').trim();
-      const code  = String(c.courseCode || '').trim();
-      if (!title && !code) { toast('Course needs a title or a code'); return false; }
+      const t = String(c.title || '').trim();
+      const code = String(c.courseCode || '').trim();
+      if (!t && !code) { toast('Course needs a title or code'); return false; }
       if (!(Number(c.unit) > 0)) { toast('Units must be > 0'); return false; }
       if (!(Number(c.score) >= 0 && Number(c.score) <= 100)) { toast('Scores must be 0–100'); return false; }
-      const key = (code ? code.toLowerCase().replace(/[^a-z0-9]/g,'') : title.toLowerCase()) + '|' + (Number(c.unit)||0) + '|' + (Number(c.score)||0);
-      if (seen.has(key)) { toast(`Duplicate course in this list`); return false; }
+      const key = (code ? code.toLowerCase().replace(/[^a-z0-9]/g,'') : t.toLowerCase()) + '|' + (Number(c.unit)||0) + '|' + (Number(c.score)||0);
+      if (seen.has(key)) { toast('Duplicate course in this list'); return false; }
       seen.add(key);
     }
     return true;
   }
 
-  // Fingerprint helpers for dedupe
+  // ---------- Fingerprint for client dedupe ----------
   function normalizePayload(p) {
     const clean = s => String(s || '').trim().toLowerCase();
     return {
@@ -405,20 +330,14 @@
       const buf = await crypto.subtle.digest('SHA-256', enc);
       return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join('');
     }
-    let h = 5381; for (let i=0; i<str.length; i++) h = ((h<<5)+h) + str.charCodeAt(i);
+    let h = 5381; for (let i=0;i<str.length;i++) h=((h<<5)+h)+str.charCodeAt(i);
     return (h>>>0).toString(16).padStart(8,'0');
   }
   async function makeClientFingerprint(payload) {
     return sha256Hex(JSON.stringify(normalizePayload(payload)));
   }
- function goToPrint(id) {
-  const url = new URL('/print.html', window.location.origin);
-  if (id) url.searchParams.set('id', id);
-  console.log('Redirecting to', url.toString());
-  window.location.assign(url.toString()); // or window.location.replace(...)
-}
 
-  // ---------------- Submit ----------------
+  // ---------- Submit ----------
   async function onSubmit() {
     try {
       if (submitting) return;
@@ -456,21 +375,15 @@
         return;
       }
 
+      // optional change summary
       if (changeBox && (Array.isArray(data.added) || Array.isArray(data.updated))) {
         const lines = [];
         (data.added || []).forEach(x => lines.push(`Added ${x.courseCode ? x.courseCode+' ' : ''}${x.title || ''} (${x.score})`));
-        (data.updated || []).forEach(x => {
-          const changed = (x.oldScore !== undefined && x.newScore !== undefined && x.oldScore !== x.newScore) ||
-                          (x.oldUnit !== undefined && x.newUnit !== undefined && x.oldUnit !== x.newUnit) ||
-                          (x.title !== x.newTitle) || (x.courseCode !== x.newCode);
-          if (changed) lines.push(`Updated ${x.courseCode ? x.courseCode+' ' : ''}${x.title || ''}: ${x.oldScore ?? ''}→${x.newScore ?? ''}`);
-        });
+        (data.updated || []).forEach(x => lines.push(`Updated ${x.courseCode ? x.courseCode+' ' : ''}${x.title || ''}`));
         if (lines.length) {
           changeBox.innerHTML = lines.map(l => `• ${l}`).join('<br>');
           changeBox.style.display = 'block';
-          setTimeout(()=> { changeBox.style.display='none'; }, 2500);
-        } else {
-          changeBox.style.display = 'none';
+          setTimeout(()=> { changeBox.style.display='none'; }, 2000);
         }
       }
 
@@ -482,19 +395,18 @@
       resetSubmitBtn();
     }
   }
-
   function resetSubmitBtn() {
     submitting = false;
     const btn = document.getElementById('submitBtn');
     if (btn) { btn.disabled = false; btn.textContent = 'Submit'; }
   }
 
-  // ---------------- Init ----------------
+  // ---------- Init ----------
   document.addEventListener('DOMContentLoaded', () => {
-    // default year = current year
+    // default year
     const y = new Date().getFullYear();
     state.academicYear = String(y);
-    if (yearInput) yearInput.value = state.academicYear;
+    const yi = document.getElementById('yearInput'); if (yi) yi.value = state.academicYear;
     render();
   });
 })();

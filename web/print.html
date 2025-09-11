@@ -2,36 +2,284 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Privacy Policy</title>
+  <title>Results Sheet</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <link rel="stylesheet" href="./styles.css" />
+  <link rel="stylesheet" href="/styles.css" />
   <style>
-    body { background:#0b1220; color:#e5e7eb; font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; }
-    main { max-width: 900px; margin: 0 auto; padding: 20px; }
-    a { color:#93c5fd; }
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; color:#e5e7eb; background:#0b1220; }
+    main { max-width: 960px; margin: 0 auto; padding: 20px; }
+    header { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:16px 0; }
+    h1 { margin:0 0 2px 0; font-size: 22px; }
+    .sub { opacity:.85; font-size:14px; }
+    .row { display:flex; align-items:center; gap:10px; margin: 6px 0; flex-wrap:wrap; }
+    .noprint { display:inline-flex; gap:8px; }
+    .btn, .backbtn { padding:10px 12px; border-radius:8px; border:1px solid #374151; background:#111827; color:#e5e7eb; text-decoration:none; cursor:pointer; }
+    .btn:hover, .backbtn:hover { border-color:#7c3aed; }
+    .grid { width:100%; border-collapse: collapse; margin-top:14px; }
+    .grid th, .grid td { border:1px solid #223; padding:8px; text-align:left; }
+    .stats { display:flex; gap:16px; margin-top:10px; flex-wrap:wrap; }
+    .stat { background:#0e1628; border:1px solid #1f2937; padding:10px 12px; border-radius:8px; }
+    .logo { height:48px; width:auto; border-radius:6px; border:1px solid #243142; display:none; }
+    footer { margin-top: 28px; }
+    .scale-vert { display:grid; grid-template-columns: 1fr; gap:6px 12px; }
+    .scale-vert .badge { display:inline-block; min-width:36px; text-align:center; border-radius:8px; border:1px solid #2b3141; padding:2px 8px; background:#0e1628; margin-right:8px; }
+    .muted { color:#9ca3af; }
+    footer.links { margin-top:16px; display:flex; gap:16px; color:#9ca3af; }
+    footer.links a { color:#9ca3af; text-decoration: underline; }
+    @media print{ .noprint { display:none !important; } body { background:#fff; color:#000; } .grid th, .grid td { border-color:#888; } }
   </style>
 </head>
 <body>
 <main>
-  <h1>Privacy Policy</h1>
-  <p>Last updated: <span id="d"></span></p>
-  <p>This site collects the information you enter (e.g., student name, courses, scores) solely to generate your results and optional printouts. We do not sell your data.</p>
-  <h2>What we store</h2>
-  <ul>
-    <li>Submission data (name, country, university name/logo URL, semester, year, courses)</li>
-    <li>Technical logs for reliability and error diagnosis</li>
-  </ul>
-  <h2>How we use it</h2>
-  <ul>
-    <li>Calculate grades/GPA and render print pages</li>
-    <li>Improve performance and fix bugs</li>
-  </ul>
-  <h2>Data retention</h2>
-  <p>We may remove old or inactive submissions from time to time. Contact us if you need a specific deletion.</p>
-  <h2>Contact</h2>
-  <p>Questions? Email the site owner.</p>
-  <p><a href="./index.html">← Back to calculator</a></p>
+  <header>
+    <div style="display:flex; align-items:center; gap:12px;">
+      <img id="pLogo" alt="Logo" class="logo" />
+      <div>
+        <h1>Results Sheet</h1>
+        <div id="pUniversity" class="sub"></div>
+      </div>
+    </div>
+    <div class="noprint">
+      <a href="/index.html" class="backbtn">← Back to calculator</a>
+      <button class="btn" onclick="window.print()">Print</button>
+    </div>
+  </header>
+
+  <section class="row">
+    <div class="stat"><strong>Student:</strong> <span id="pStudent">—</span></div>
+    <div class="stat"><strong>Country:</strong> <span id="pCountry">—</span></div>
+    <div class="stat"><strong>Semester:</strong> <span id="pSemester">—</span></div>
+    <div class="stat"><strong>Year:</strong> <span id="pYear">—</span></div>
+    <div class="stat"><strong>Total Units:</strong> <span id="pUnits">0</span></div>
+    <div class="stat"><strong>GPA:</strong> <span id="pGpa">0.00</span></div>
+  </section>
+
+  <section>
+    <table class="grid">
+      <thead>
+        <tr>
+          <th>Code</th>
+          <th>Course</th>
+          <th>Units</th>
+          <th>Score</th>
+          <th>Grade</th>
+          <th>Points</th>
+        </tr>
+      </thead>
+      <tbody id="pBody">
+        <tr><td colspan="6" class="muted">Loading…</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <footer>
+    <h3 style="margin:16px 0 8px 0;">Grading Scale</h3>
+    <div class="muted" id="pScaleTitle">Scale: —</div>
+    <div id="pScale" class="scale-vert" style="margin-top:8px;"></div>
+  </footer>
+
+  <footer class="links noprint">
+    <a href="/privacy.html">Privacy Policy</a>
+    <a href="/terms.html">Terms of Use</a>
+  </footer>
 </main>
-<script>document.getElementById('d').textContent = new Date().toISOString().slice(0,10);</script>
+
+<script>
+  const SCALES = {
+    nigeria: [
+      { letter: 'A', min: 70, points: 5 },
+      { letter: 'B', min: 60, points: 4 },
+      { letter: 'C', min: 50, points: 3 },
+      { letter: 'D', min: 45, points: 2 },
+      { letter: 'E', min: 40, points: 1 },
+      { letter: 'F', min: 0, points: 0 },
+    ],
+    us: [
+      { letter: 'A', min: 90, points: 4 },
+      { letter: 'B', min: 80, points: 3 },
+      { letter: 'C', min: 70, points: 2 },
+      { letter: 'D', min: 60, points: 1 },
+      { letter: 'F', min: 0, points: 0 },
+    ],
+    us_plusminus: [
+      { letter: 'A+', min: 97, points: 4.3 },
+      { letter: 'A',  min: 93, points: 4.0 },
+      { letter: 'A-', min: 90, points: 3.7 },
+      { letter: 'B+', min: 87, points: 3.3 },
+      { letter: 'B',  min: 83, points: 3.0 },
+      { letter: 'B-', min: 80, points: 2.7 },
+      { letter: 'C+', min: 77, points: 2.3 },
+      { letter: 'C',  min: 73, points: 2.0 },
+      { letter: 'C-', min: 70, points: 1.7 },
+      { letter: 'D',  min: 60, points: 1.0 },
+      { letter: 'F',  min: 0,  points: 0.0 },
+    ],
+    canada: [
+      { letter: 'A', min: 85, points: 4 },
+      { letter: 'B', min: 70, points: 3 },
+      { letter: 'C', min: 60, points: 2 },
+      { letter: 'D', min: 50, points: 1 },
+      { letter: 'F', min: 0,  points: 0 },
+    ],
+    uk: [
+      { letter: 'First',        min: 70, points: 4 },
+      { letter: 'Upper Second', min: 60, points: 3 },
+      { letter: 'Lower Second', min: 50, points: 2 },
+      { letter: 'Third',        min: 40, points: 1 },
+      { letter: 'Fail',         min: 0,  points: 0 },
+    ],
+    australia: [
+      { letter: 'HD', min: 85, points: 7 },
+      { letter: 'D',  min: 75, points: 6 },
+      { letter: 'C',  min: 65, points: 5 },
+      { letter: 'P',  min: 50, points: 4 },
+      { letter: 'N',  min: 0,  points: 0 },
+    ],
+    india: [
+      { letter: 'O',  min: 90, points: 10 },
+      { letter: 'A+', min: 80, points: 9 },
+      { letter: 'A',  min: 70, points: 8 },
+      { letter: 'B+', min: 60, points: 7 },
+      { letter: 'B',  min: 55, points: 6 },
+      { letter: 'C',  min: 50, points: 5 },
+      { letter: 'P',  min: 40, points: 4 },
+      { letter: 'F',  min: 0,  points: 0 },
+    ],
+    ghana: [
+      { letter: 'A',  min: 80, points: 4.0 },
+      { letter: 'B+', min: 75, points: 3.5 },
+      { letter: 'B',  min: 70, points: 3.0 },
+      { letter: 'C+', min: 65, points: 2.5 },
+      { letter: 'C',  min: 60, points: 2.0 },
+      { letter: 'D+', min: 55, points: 1.5 },
+      { letter: 'D',  min: 50, points: 1.0 },
+      { letter: 'F',  min: 0,  points: 0.0 },
+    ]
+  };
+
+  function currentScale(country){ return SCALES[country] || SCALES.nigeria; }
+  function maxPoints(country){ return Math.max(...currentScale(country).map(r => Number(r.points) || 0)); }
+  function gradeFromScore(score, country){
+    const n = Number(score);
+    if (!Number.isFinite(n) || n < 0 || n > 100) return { letter:'—', points:0 };
+    const ranges = [...currentScale(country)].sort((a,b)=>b.min-a.min);
+    const band = ranges.find(r => n >= r.min);
+    return band ? { letter: band.letter, points: Number(band.points) } : { letter:'—', points:0 };
+  }
+  function scaleSummaryText(country){
+    return [...currentScale(country)].sort((a,b)=>b.min-a.min)
+      .map(r => `${r.letter}≥${r.min}→${r.points}`).join(', ');
+  }
+
+  async function load() {
+    const params = new URLSearchParams(location.search);
+    const id = params.get('id');
+
+    if (id) {
+      try {
+        const res = await fetch(`/api/getSubmission/${encodeURIComponent(id)}`, { headers: { 'Cache-Control':'no-cache' }});
+        if (res.ok) {
+          const data = await res.json();
+          render(data);
+          sessionStorage.setItem('gpa_last_submission', JSON.stringify({ id, payload: data }));
+          return;
+        }
+      } catch(e) {}
+    }
+
+    try {
+      const saved = JSON.parse(sessionStorage.getItem('gpa_last_submission') || 'null');
+      if (saved?.payload) {
+        const p = saved.payload;
+        render({
+          id: saved.id || id || '',
+          studentName: p.studentName,
+          country: p.country,
+          semester: p.semester || '',
+          academicYear: p.academicYear || '',
+          scaleLegend: p.scaleLegend,
+          universityName: p.universityName || '',
+          universityLogoUrl: p.universityLogoUrl || '',
+          courses: (p.courses || []).map(c => ({
+            title: c.title,
+            courseCode: c.courseCode || '',
+            unit: Number(c.unit)||0,
+            score: Number(c.score)||0
+          }))
+        });
+        return;
+      }
+    } catch {}
+
+    document.getElementById('pBody').innerHTML =
+      '<tr><td colspan="6" class="muted">No data found. Return to the calculator and submit again.</td></tr>';
+  }
+
+  function render(data){
+    const { studentName, country, semester, academicYear, scaleLegend, universityName, universityLogoUrl } = data || {};
+    const tbody = document.getElementById('pBody');
+
+    document.getElementById('pStudent').textContent  = studentName || '—';
+    document.getElementById('pCountry').textContent  = country || '—';
+    document.getElementById('pSemester').textContent = semester || '—';
+    document.getElementById('pYear').textContent     = academicYear || '—';
+    const uniEl = document.getElementById('pUniversity');
+    uniEl.textContent = universityName || '';
+
+    const logo = document.getElementById('pLogo');
+    if (universityLogoUrl) {
+      logo.onload = () => { logo.style.display = 'block'; };
+      logo.onerror = () => { logo.style.display = 'none'; };
+      logo.src = universityLogoUrl;
+    } else { logo.removeAttribute('src'); logo.style.display = 'none'; }
+
+    tbody.innerHTML = '';
+    let totalUnits = 0, qualityPoints = 0;
+
+    (data.courses || []).forEach(c => {
+      const unit = Number(c.unit)||0;
+      const score = Number(c.score)||0;
+      const { letter, points } = gradeFromScore(score, country || 'nigeria');
+      if (unit > 0) { totalUnits += unit; qualityPoints += unit * points; }
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td>${escapeHtml(c.courseCode || '')}</td>
+        <td>${escapeHtml(c.title || '')}</td>
+        <td>${unit}</td>
+        <td>${score}</td>
+        <td>${letter}</td>
+        <td>${points}</td>
+      `;
+      tbody.appendChild(tr);
+    });
+
+    if (!tbody.children.length) {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `<td colspan="6" class="muted">No courses.</td>`;
+      tbody.appendChild(tr);
+    }
+
+    const gpa = totalUnits > 0 ? (qualityPoints / totalUnits) : 0;
+    document.getElementById('pUnits').textContent = String(totalUnits);
+    document.getElementById('pGpa').textContent = `${gpa.toFixed(2)} / ${maxPoints(country||'nigeria').toFixed(2)}`;
+
+    const scaleDiv = document.getElementById('pScale');
+    const scaleTitle = document.getElementById('pScaleTitle');
+    const ranges = [...currentScale(country||'nigeria')].sort((a,b)=>b.min-a.min);
+    scaleTitle.textContent = 'Scale: ' + (scaleLegend || scaleSummaryText(country||'nigeria'));
+    scaleDiv.innerHTML = '';
+    ranges.forEach(r=>{
+      const row = document.createElement('div');
+      row.innerHTML = `<span class="badge">${r.letter}</span> <span>min ${r.min}</span> <span class="muted">${Number(r.points)} pts</span>`;
+      scaleDiv.appendChild(row);
+    });
+  }
+
+  function escapeHtml(s){
+    return String(s||'').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]));
+  }
+
+  document.addEventListener('DOMContentLoaded', load);
+</script>
 </body>
 </html>

@@ -23,12 +23,11 @@
     .badge { display:inline-block; min-width:36px; text-align:center; border-radius:8px; border:1px solid #2b3141; padding:2px 8px; background:#0e1628; margin-right:8px; }
     .stats { display:flex; gap:12px; flex-wrap:wrap; margin: 8px 0 12px; }
     .stat { background:#0e1628; border:1px solid #1f2937; padding:10px 12px; border-radius:8px; }
-    #toast { position:fixed; left:50%; bottom:20px; transform:translateX(-50%); background:#0b1220; color:#fff; border:1px solid #3b4252; padding:10px 14px; border-radius:10px; display:none; z-index:9999; }
     .scale-vert { display:grid; grid-template-columns: 1fr; gap:6px 12px; }
     .footer-card { margin-top:16px; padding:12px; border:1px solid #1f2937; border-radius:10px; background:#0e1628; }
     footer { margin-top: 24px; font-size: 14px; display:flex; gap:16px; color:#9ca3af; }
     footer a { color:#9ca3af; text-decoration: underline; }
-    /* Modal for score input */
+    /* Modal */
     .modal-backdrop { position:fixed; inset:0; background:rgba(0,0,0,.5); display:none; align-items:center; justify-content:center; z-index:1000; }
     .modal { background:#0e1628; border:1px solid #1f2937; border-radius:10px; padding:16px; width:300px; }
     .modal h3 { margin:0 0 10px; font-size:16px; }
@@ -36,6 +35,8 @@
     .modal input { width:100%; }
     .modal .actions { display:flex; gap:8px; justify-content:flex-end; margin-top:12px; }
     .score-btn { padding:6px 8px; border-radius:8px; border:1px solid #374151; background:#111827; color:#e5e7eb; }
+    #toast { position:fixed; left:50%; bottom:20px; transform:translateX(-50%); background:#0b1220; color:#fff; border:1px solid #3b4252; padding:10px 14px; border-radius:10px; display:none; z-index:9999; }
+    @media print{ .noprint{ display:none !important; } body { background:#fff; color:#000; } .grid th,.grid td{ border-color:#888; } }
   </style>
 </head>
 <body>
@@ -46,7 +47,7 @@
 
     <header class="row" style="justify-content:space-between;">
       <h1>Result / GPA Calculator</h1>
-      <div class="row">
+      <div class="row noprint">
         <button id="printBtn" class="btn" type="button">Print</button>
       </div>
     </header>
@@ -74,7 +75,7 @@
       <select id="semesterSelect"></select>
 
       <label for="yearInput">Year</label>
-      <input id="yearInput" type="text" placeholder="e.g., 2024 or 2024/25" style="width:140px;">
+      <input id="yearInput" type="text" placeholder="e.g., 2025 or 2024/25" style="width:140px;">
     </section>
 
     <section class="row">
@@ -90,7 +91,7 @@
     </section>
 
     <!-- Actions -->
-    <section class="row">
+    <section class="row noprint">
       <button id="addBtn" class="btn" type="button">Add course</button>
       <button id="resetBtn" class="btn" type="button">Reset</button>
       <button id="submitBtn" class="btn" type="button">Submit</button>
@@ -103,8 +104,7 @@
       <div class="stat"><strong>GPA:</strong> <span id="statGpa">0.00</span></div>
     </section>
 
-    <!-- Change summary after submit -->
-    <div id="changeSummary" class="muted" style="display:none; margin:8px 0;"></div>
+    <div id="changeSummary" class="noprint muted" style="display:none; margin:8px 0;"></div>
 
     <!-- Table -->
     <section>
@@ -117,7 +117,7 @@
             <th>Score</th>
             <th>Grade</th>
             <th>Points</th>
-            <th></th>
+            <th class="noprint"></th>
           </tr>
         </thead>
         <tbody id="tbody">
@@ -131,11 +131,10 @@
           <td><input class="code"  type="text"  placeholder="BIO101"></td>
           <td><input class="title" type="text"  placeholder="Biology 101"></td>
           <td><input class="unit"  type="number" min="0" step="1"></td>
-          <!-- Score is a BUTTON that opens a modal -->
           <td><button class="score-btn" type="button">Set</button></td>
           <td class="letter">—</td>
           <td class="points">0</td>
-          <td><button class="remove btn" type="button">×</button></td>
+          <td class="noprint"><button class="remove btn" type="button">×</button></td>
         </tr>
       </template>
     </section>
@@ -146,9 +145,9 @@
       <div id="scaleList" class="scale-vert" style="margin-top:8px;"></div>
     </section>
 
-    <footer>
-      <a href="./privacy.html">Privacy Policy</a>
-      <a href="./terms.html">Terms of Use</a>
+    <footer class="noprint">
+      <a href="/privacy.html">Privacy Policy</a>
+      <a href="/terms.html">Terms of Use</a>
     </footer>
   </main>
 
@@ -165,6 +164,6 @@
   </div>
 
   <div id="toast"></div>
-  <script src="./app.js" defer></script>
+  <script src="/app.js" defer></script>
 </body>
 </html>
