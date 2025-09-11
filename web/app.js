@@ -429,7 +429,7 @@
       try { last = JSON.parse(localStorage.getItem(LAST_SAVED_KEY) || 'null'); } catch {}
       if (last && last.fp === clientFp && last.id) {
         sessionStorage.setItem(STORAGE_KEY, JSON.stringify({ id: last.id, payload }));
-        window.location.href = `./print.html?id=${encodeURIComponent(last.id)}`;
+        window.location.href = `/print.html?id=${encodeURIComponent(last.id)}`;
         return;
       }
 
@@ -470,7 +470,7 @@
 
       localStorage.setItem(LAST_SAVED_KEY, JSON.stringify({ fp: clientFp, id: data.id }));
       sessionStorage.setItem(STORAGE_KEY, JSON.stringify({ id: data.id, payload }));
-      window.location.href = `./print.html?id=${encodeURIComponent(data.id)}`;
+      window.location.href = `/print.html?id=${encodeURIComponent(data.id)}`;
     } catch (e) {
       alert('Network error: ' + e.message);
       resetSubmitBtn();
