@@ -299,8 +299,7 @@
     }
     return true;
   }
-
-  async function onSubmit() {
+async function onSubmit() {
   try {
     if (submitting) return;          // block double-clicks
     if (!validate()) return;
@@ -312,7 +311,7 @@
     const payload = serializeState();
     const clientFp = await makeClientFingerprint(payload);
 
-    // ---- Pre-submit short-circuit: identical to last saved
+    // 1) Pre-submit short-circuit: exact same as last saved (local)
     let last = null;
     try { last = JSON.parse(localStorage.getItem(LAST_SAVED_KEY) || 'null'); } catch {}
     if (last && last.fp === clientFp && last.id) {
@@ -322,7 +321,7 @@
       return;
     }
 
-    // ---- Send to backend
+    // 2) POST to backend
     const res = await fetch(`${API_BASE}/submissions`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-cache' },
@@ -330,18 +329,16 @@
     });
 
     const status = res.status;
-    const text = await res.text();
+    const raw = await res.text();
     let data = {};
-    try { data = text ? JSON.parse(text) : {}; } catch {}
+    try { data = raw ? JSON.parse(raw) : {}; } catch {}
 
-    // Expect your API to return a full object on 200 like:
-    // { id, studentName, country, scaleLegend, courses: [...] }
+    // Your API returns 200 with full submission object: { id, studentName, country, courses:[...] }
     const returnedId = data?.id || null;
 
-    // Compute server-side fp (from the response body) so we can classify 200 = duplicate vs new
-    // We only need fields our normalizePayload() uses.
+    // Build a server-side fingerprint from what the server sent back
     let serverFp = null;
-    if (data && Array.isArray(data.courses)) {
+    if (data && typeof data.studentName !== 'undefined' && Array.isArray(data.courses)) {
       serverFp = await makeClientFingerprint({
         studentName: data.studentName,
         country: data.country,
@@ -349,49 +346,37 @@
       });
     }
 
-    // Refresh 'last' in case it changed during submit
+    // Re-read 'last' in case something else wrote during submit
     try { last = JSON.parse(localStorage.getItem(LAST_SAVED_KEY) || 'null'); } catch {}
 
-    // Classification rules (don’t depend on duplicate flag or 409):
-    // - If serverFp === clientFp: the server is giving us the same dataset we just submitted.
-    //   If returnedId matches the last id we already knew, it’s “No changes…”.
-    //   Otherwise, it’s the same data found on the server → “already exists…”.
-    // - Else: treat as a new save.
-    if (serverFp && serverFp === clientFp) {
-      if (last && last.fp === clientFp && last.id && returnedId && returnedId === last.id) {
-        toast('No changes detected. Opening your existing result…', 3000);
-      } else {
-        toast('This submission already exists. Opening saved copy…', 3000);
+    // 3) Classify the outcome (works even when status is always 200)
+    if (returnedId) {
+      // If serverFp equals clientFp, the server returned the same dataset you just sent
+      if (serverFp && serverFp === clientFp) {
+        // If it's also the same id as last saved → truly no change; else → existed already on server
+        if (last && last.fp === clientFp && last.id === returnedId) {
+          toast('No changes detected. Opening your existing result…', 3000);
+        } else {
+          toast('This submission already exists. Opening saved copy…', 3000);
+        }
       }
-      const finalId = returnedId || (last && last.id);
-      if (!finalId) {
-        alert('Save succeeded but no id returned.'); resetSubmitBtn(); return;
-      }
-      localStorage.setItem(LAST_SAVED_KEY, JSON.stringify({ fp: clientFp, id: finalId }));
-      sessionStorage.setItem(STORAGE_KEY, JSON.stringify({ id: finalId, payload }));
-      window.location.href = `./print.html?id=${encodeURIComponent(finalId)}`;
-      return;
-    }
-
-    // If we got here: treat 200/201 as a fresh save
-    if ((status === 200 || status === 201) && returnedId) {
+      // Save mapping and go to print (works for both new and duplicate)
       localStorage.setItem(LAST_SAVED_KEY, JSON.stringify({ fp: clientFp, id: returnedId }));
       sessionStorage.setItem(STORAGE_KEY, JSON.stringify({ id: returnedId, payload }));
       window.location.href = `./print.html?id=${encodeURIComponent(returnedId)}`;
       return;
     }
 
-    // Fallbacks
-    if (status === 409 && (last?.id || returnedId)) {
-      const finalId = returnedId || last.id;
+    // 4) If server didn’t return id but status hints duplicate (409) — fallback to last.id if present
+    if (status === 409 && last?.id) {
       toast('This submission already exists. Opening saved copy…', 3000);
-      localStorage.setItem(LAST_SAVED_KEY, JSON.stringify({ fp: clientFp, id: finalId }));
-      sessionStorage.setItem(STORAGE_KEY, JSON.stringify({ id: finalId, payload }));
-      window.location.href = `./print.html?id=${encodeURIComponent(finalId)}`;
+      sessionStorage.setItem(STORAGE_KEY, JSON.stringify({ id: last.id, payload }));
+      window.location.href = `./print.html?id=${encodeURIComponent(last.id)}`;
       return;
     }
 
-    alert('Save failed: ' + (text || status));
+    // 5) Anything else is a failure; surface server message to help debug
+    alert('Save failed: ' + (raw || status));
     resetSubmitBtn();
   } catch (e) {
     alert('Network error: ' + e.message);
