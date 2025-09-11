@@ -19,7 +19,6 @@ module.exports = async function (context, req) {
     }
     const pool = await getPool();
 
-    // Get the submission (for student + country)
     const rSub = await pool.request()
       .input("Id", sql.UniqueIdentifier, id)
       .query(`
@@ -27,7 +26,8 @@ module.exports = async function (context, req) {
                StudentName AS studentName,
                Country     AS country,
                ScaleLegend AS scaleLegend,
-               CreatedAt
+               UniversityName AS universityName,
+               UniversityLogoUrl AS universityLogoUrl
         FROM dbo.Submissions
         WHERE Id=@Id
       `);
@@ -38,12 +38,11 @@ module.exports = async function (context, req) {
     }
     const sub = rSub.recordset[0];
 
-    // Consolidated courses for this student (no duplicates)
     const studentKey = (sub.studentName || '').trim().toLowerCase() + '|' + (sub.country || '').trim().toLowerCase();
     const rCourses = await pool.request()
       .input("StudentKey", sql.NVarChar(256), studentKey)
       .query(`
-        SELECT Title AS title, Unit AS unit, Score AS score
+        SELECT Title AS title, CourseCode AS courseCode, Unit AS unit, Score AS score
         FROM dbo.Courses
         WHERE StudentKey=@StudentKey
         ORDER BY Title
@@ -57,6 +56,8 @@ module.exports = async function (context, req) {
         studentName: sub.studentName,
         country: sub.country,
         scaleLegend: sub.scaleLegend,
+        universityName: sub.universityName,
+        universityLogoUrl: sub.universityLogoUrl,
         courses: rCourses.recordset
       }
     };
