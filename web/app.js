@@ -78,6 +78,7 @@
   const API_BASE = '/api';
   const STORAGE_KEY = 'gpa_last_submission';   // for print page
   const LAST_SAVED_KEY = 'gpa_last_saved_fp';  // { fp, id } for dedupe
+  let submitting = false; // guard against double-click
 
   const state = {
     studentName: '',
@@ -302,10 +303,12 @@
   // ---------------- Submit (with duplicate prevention) ----------------
   async function onSubmit() {
     try {
+      if (submitting) return; // block double-clicks
       if (!validate()) return;
 
+      submitting = true;
       const btn = document.getElementById('submitBtn');
-      btn.disabled = true; btn.textContent = 'Submitting...';
+      if (btn) { btn.disabled = true; btn.textContent = 'Submitting...'; }
 
       const payload = serializeState();
       const fp = await makeClientFingerprint(payload);
@@ -334,13 +337,21 @@
       try { data = text ? JSON.parse(text) : {}; } catch { /* ignore parse error */ }
 
       // Duplicate (server indicates with 409 or 200 + duplicate:true)
-      if (status === 409 && data && data.id) {
-        toast('This submission already exists. Opening saved copy…', 3000);
-        localStorage.setItem(LAST_SAVED_KEY, JSON.stringify({ fp, id: data.id }));
-        sessionStorage.setItem(STORAGE_KEY, JSON.stringify({ id: data.id, payload }));
-        window.location.href = `./print.html?id=${encodeURIComponent(data.id)}`;
-        return;
+      if (status === 409) {
+        const existingId = data?.id || (JSON.parse(localStorage.getItem(LAST_SAVED_KEY) || 'null') || {}).id;
+        if (existingId) {
+          toast('This submission already exists. Opening saved copy…', 3000);
+          localStorage.setItem(LAST_SAVED_KEY, JSON.stringify({ fp, id: existingId }));
+          sessionStorage.setItem(STORAGE_KEY, JSON.stringify({ id: existingId, payload }));
+          window.location.href = `./print.html?id=${encodeURIComponent(existingId)}`;
+          return;
+        } else {
+          toast('This submission already exists.', 3000);
+          resetSubmitBtn();
+          return;
+        }
       }
+
       if ((status === 200 || status === 201) && data && data.id) {
         if (data.duplicate) toast('This submission already exists. Opening saved copy…', 3000);
         localStorage.setItem(LAST_SAVED_KEY, JSON.stringify({ fp, id: data.id }));
@@ -351,12 +362,17 @@
 
       // Failure
       alert('Save failed: ' + (text || status));
-      btn.disabled = false; btn.textContent = 'Submit';
+      resetSubmitBtn();
     } catch (e) {
       alert('Network error: ' + e.message);
-      const btn = document.getElementById('submitBtn');
-      if (btn) { btn.disabled = false; btn.textContent = 'Submit'; }
+      resetSubmitBtn();
     }
+  }
+
+  function resetSubmitBtn() {
+    submitting = false;
+    const btn = document.getElementById('submitBtn');
+    if (btn) { btn.disabled = false; btn.textContent = 'Submit'; }
   }
 
   // ---------------- Disclaimer (optional hide for session) ----------------
