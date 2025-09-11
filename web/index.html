@@ -1,113 +1,138 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
+  <meta charset="UTF-8" />
   <title>GPA / Result Calculator</title>
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <!-- Your global stylesheet (keep it) -->
   <link rel="stylesheet" href="./styles.css" />
   <style>
-    /* tiny extras for code column + bottom scale */
-    .grid th, .grid td { vertical-align: middle; }
-    .grid input[type="text"] { width: 100%; }
-    #scalePanel { margin-top: 16px; }
-    #scaleList { display: flex; flex-direction: column; gap: 6px; }
-    #scaleList li { display:flex; gap:10px; align-items:center; }
-    #scaleList .badge { display:inline-block; min-width:2.5rem; text-align:center;
-      border:1px solid var(--muted); border-radius:8px; padding:4px 6px; }
-    #toast{ position:fixed; left:50%; bottom:20px; transform:translateX(-50%);
-      background:#0b1220; color:#fff; border:1px solid #3b4252; padding:10px 14px;
-      border-radius:10px; display:none; z-index:9999; }
-    #changeSummary{ color:#cbd5e1; margin:8px 0; display:none; }
-    .invalid{ outline:1px solid #ef4444; }
+    /* Minimal helpers for new UI bits */
+    body { background:#0b1220; color:#e5e7eb; font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; }
+    main { max-width: 1100px; margin: 0 auto; padding: 16px; }
+    h1 { font-size: 22px; margin: 0; }
+    .row { display:flex; gap:12px; align-items:center; flex-wrap: wrap; margin: 10px 0; }
+    label { min-width: 120px; }
+    input, select { background:#0e1628; color:#e5e7eb; border:1px solid #1f2937; border-radius:8px; padding:8px 10px; }
+    input.invalid { border-color:#ef4444; }
+    .btn { padding:10px 12px; border-radius:8px; border:1px solid #374151; background:#111827; color:#e5e7eb; cursor:pointer; }
+    .btn:hover { border-color:#7c3aed; }
+    .muted { color:#9ca3af; }
+    .banner { position:sticky; top:0; z-index:50; background:#111827; border:1px solid #1f2937; border-radius:10px; padding:10px 12px; margin:0 0 12px 0; }
+    .grid { width:100%; border-collapse: collapse; }
+    .grid th, .grid td { border:1px solid #223; padding:8px; text-align:left; }
+    .badge { display:inline-block; min-width:36px; text-align:center; border-radius:8px; border:1px solid #2b3141; padding:2px 8px; background:#0e1628; margin-right:8px; }
+    .stats { display:flex; gap:12px; flex-wrap:wrap; margin: 8px 0 12px; }
+    .stat { background:#0e1628; border:1px solid #1f2937; padding:10px 12px; border-radius:8px; }
+    .noprint { }
+    #toast { position:fixed; left:50%; bottom:20px; transform:translateX(-50%); background:#0b1220; color:#fff; border:1px solid #3b4252; padding:10px 14px; border-radius:10px; display:none; z-index:9999; }
+    /* Vertical scale at bottom */
+    .scale-vert { display:grid; grid-template-columns: 1fr; gap:6px 12px; }
+    .footer-card { margin-top:16px; padding:12px; border:1px solid #1f2937; border-radius:10px; background:#0e1628; }
+    @media print{ .noprint{ display:none !important; } body { background:#fff; color:#000; } .grid th,.grid td{ border-color:#888; } }
   </style>
 </head>
 <body>
-  <header class="topbar">
-    <h1>Result Calculator</h1>
-    <div class="noprint" style="display:flex; gap:10px; align-items:end; flex-wrap:wrap">
-      <div>
-        <label for="studentName">Student</label><br/>
-        <input id="studentName" type="text" placeholder="Full name" />
-      </div>
-      <div>
-        <label for="countrySelect">Scale</label><br/>
-        <select id="countrySelect">
-          <option value="nigeria">Nigeria (5.0)</option>
-          <option value="us">US (A=90–100)</option>
-          <option value="us_plusminus">US (+/−)</option>
-          <option value="canada">Canada</option>
-          <option value="uk">UK Classes</option>
-          <option value="australia">Australia (7.0)</option>
-          <option value="india">India (10.0)</option>
-          <option value="ghana">Ghana</option>
-        </select>
-      </div>
-      <div>
-        <label for="universityName">University</label><br/>
-        <input id="universityName" type="text" placeholder="e.g., University of Lagos" />
-      </div>
-      <div style="min-width:320px">
-        <label for="universityLogo">University logo URL</label><br/>
-        <input id="universityLogo" type="url" placeholder="https://example.com/logo.png" />
-      </div>
+  <main>
+    <!-- Always-show disclaimer -->
+    <div class="banner">
+      <strong>Disclaimer:</strong> This is <em>not</em> an official transcript. Results are user-entered and may be inaccurate.
     </div>
-  </header>
 
-  <main class="container">
-    <section class="card">
-      <div style="display:flex; gap:10px; justify-content:space-between; align-items:center">
-        <div>
-          <div>Student: <strong id="statStudent">—</strong></div>
-          <div>Total Units: <strong id="statUnits">0</strong></div>
-          <div>GPA: <strong id="statGpa">0.00</strong></div>
-        </div>
-        <div class="noprint" style="display:flex; gap:8px">
-          <button id="addBtn">Add course</button>
-          <button id="resetBtn" type="button">Reset</button>
-          <button id="submitBtn" type="button">Submit</button>
-          <button id="printBtn" type="button">Print</button>
-        </div>
+    <header class="row" style="justify-content:space-between;">
+      <h1>Result / GPA Calculator</h1>
+      <div class="row noprint">
+        <button id="printBtn" class="btn" type="button">Print</button>
       </div>
+    </header>
 
-      <div id="changeSummary" class="noprint"></div>
+    <!-- Top controls -->
+    <section class="row">
+      <label for="studentName">Student name</label>
+      <input id="studentName" type="text" placeholder="e.g., Jane Doe" />
+      <label for="countrySelect">Country scale</label>
+      <select id="countrySelect">
+        <option value="nigeria">Nigeria</option>
+        <option value="us">US (A-F)</option>
+        <option value="us_plusminus">US (A+/A/A- …)</option>
+        <option value="canada">Canada</option>
+        <option value="uk">UK (class)</option>
+        <option value="australia">Australia</option>
+        <option value="india">India (10pt)</option>
+        <option value="ghana">Ghana</option>
+      </select>
+    </section>
 
+    <section class="row">
+      <label for="universityName">University</label>
+      <input id="universityName" type="text" placeholder="e.g., University of Lagos" style="min-width:280px;">
+    </section>
+
+    <section class="row">
+      <label for="universityLogo">Logo URL</label>
+      <input id="universityLogo" type="url" placeholder="https://example.com/logo.png" style="min-width:360px;">
+      <img id="logoPreview" alt="Logo preview" style="height:40px; display:none; border:1px solid #2b3141; border-radius:6px;">
+      <small class="muted">Use a direct HTTPS image link (.png/.jpg). Share pages (e.g., Drive) won’t work.</small>
+    </section>
+
+    <!-- Actions -->
+    <section class="row noprint">
+      <button id="addBtn" class="btn" type="button">Add course</button>
+      <button id="resetBtn" class="btn" type="button">Reset</button>
+      <button id="submitBtn" class="btn" type="button">Submit</button>
+    </section>
+
+    <!-- Stats -->
+    <section class="stats">
+      <div class="stat"><strong>Student:</strong> <span id="statStudent">—</span></div>
+      <div class="stat"><strong>Total Units:</strong> <span id="statUnits">0</span></div>
+      <div class="stat"><strong>GPA:</strong> <span id="statGpa">0.00</span></div>
+    </section>
+
+    <!-- Change summary after submit -->
+    <div id="changeSummary" class="noprint muted" style="display:none; margin:8px 0;"></div>
+
+    <!-- Table -->
+    <section>
       <table class="grid">
         <thead>
           <tr>
-            <th style="width:120px">Code</th>
+            <th>Code</th>
             <th>Course</th>
-            <th style="width:90px">Units</th>
-            <th style="width:100px">Score</th>
-            <th style="width:80px">Grade</th>
-            <th style="width:80px">Pts</th>
-            <th style="width:50px"></th>
+            <th>Units</th>
+            <th>Score</th>
+            <th>Grade</th>
+            <th>Points</th>
+            <th class="noprint"></th>
           </tr>
         </thead>
-        <tbody id="tbody"></tbody>
+        <tbody id="tbody">
+          <tr><td colspan="7" class="muted">No courses yet. Click <strong>Add course</strong> to begin.</td></tr>
+        </tbody>
       </table>
 
+      <!-- Row template -->
       <template id="row-template">
         <tr>
-          <td><input class="code"  type="text"  placeholder="BIO101" /></td>
-          <td><input class="title" type="text"  placeholder="Biology 101" /></td>
-          <td><input class="unit"  type="number" min="0" step="1" /></td>
-          <td><input class="score" type="number" min="0" max="100" step="1" /></td>
+          <td><input class="code"  type="text"  placeholder="BIO101"></td>
+          <td><input class="title" type="text"  placeholder="Biology 101"></td>
+          <td><input class="unit"  type="number" min="0" step="1"></td>
+          <td><input class="score" type="number" min="0" max="100" step="1"></td>
           <td class="letter">—</td>
           <td class="points">0</td>
-          <td><button class="remove" type="button" title="Remove">×</button></td>
+          <td class="noprint"><button class="remove btn" type="button">×</button></td>
         </tr>
       </template>
     </section>
 
-    <!-- Vertical scale at bottom -->
-    <section id="scalePanel" class="card">
-      <h3>Grading scale</h3>
-      <ul id="scaleList"></ul>
+    <!-- Grading scale (vertical, bottom) -->
+    <section class="footer-card">
+      <div class="muted" id="scaleSummary">Scale: —</div>
+      <div id="scaleList" class="scale-vert" style="margin-top:8px;"></div>
     </section>
   </main>
 
-  <div id="toast" class="noprint"></div>
-
-  <script src="./app.js"></script>
+  <div id="toast"></div>
+  <script src="./app.js" defer></script>
 </body>
 </html>

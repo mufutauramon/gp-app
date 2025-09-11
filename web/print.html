@@ -4,13 +4,11 @@
   <meta charset="UTF-8" />
   <title>Results Sheet</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <!-- Use your global styles if present -->
   <link rel="stylesheet" href="./styles.css" />
   <style>
-    /* Minimal helpers in case styles.css doesn't include these */
     body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; color:#e5e7eb; background:#0b1220; }
-    header { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:16px 0; }
     main { max-width: 960px; margin: 0 auto; padding: 20px; }
+    header { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:16px 0; }
     h1 { margin:0 0 2px 0; font-size: 22px; }
     .sub { opacity:.85; font-size:14px; }
     .row { display:flex; align-items:center; gap:10px; margin: 6px 0; flex-wrap:wrap; }
@@ -19,25 +17,14 @@
     .btn:hover, .backbtn:hover { border-color:#7c3aed; }
     .grid { width:100%; border-collapse: collapse; margin-top:14px; }
     .grid th, .grid td { border:1px solid #223; padding:8px; text-align:left; }
-    .stats { display:flex; gap:16px; margin-top:10px; }
+    .stats { display:flex; gap:16px; margin-top:10px; flex-wrap:wrap; }
     .stat { background:#0e1628; border:1px solid #1f2937; padding:10px 12px; border-radius:8px; }
     .logo { height:48px; width:auto; border-radius:6px; border:1px solid #243142; display:none; }
     footer { margin-top: 28px; }
-     .scale-vert {
-    display: grid;
-    grid-template-columns: 1fr; /* single column = vertical */
-    gap: 6px 12px;
-  }
-  .scale-vert .badge {
-    display:inline-block; min-width:36px; text-align:center;
-    border-radius:8px; border:1px solid #2b3141; padding:2px 8px;
-    background:#0e1628; margin-right:8px;
-  }
-    @media print{
-      .noprint { display:none !important; }
-      body { background:#fff; color:#000; }
-      .grid th, .grid td { border-color:#888; }
-    }
+    .scale-vert { display:grid; grid-template-columns: 1fr; gap:6px 12px; }
+    .scale-vert .badge { display:inline-block; min-width:36px; text-align:center; border-radius:8px; border:1px solid #2b3141; padding:2px 8px; background:#0e1628; margin-right:8px; }
+    .muted { color:#9ca3af; }
+    @media print{ .noprint { display:none !important; } body { background:#fff; color:#000; } .grid th, .grid td { border-color:#888; } }
   </style>
 </head>
 <body>
@@ -45,7 +32,6 @@
   <header>
     <div style="display:flex; align-items:center; gap:12px;">
       <img id="pLogo" alt="Logo" class="logo" />
-      <img id="pLogo" alt="Logo" class="logo" onerror="this.style.display='none'" />
       <div>
         <h1>Results Sheet</h1>
         <div id="pUniversity" class="sub"></div>
@@ -68,8 +54,8 @@
     <table class="grid">
       <thead>
         <tr>
-          <th>Course Code</th>
-          <th>Course <Title></Title></th>
+          <th>Code</th>
+          <th>Course</th>
           <th>Units</th>
           <th>Score</th>
           <th>Grade</th>
@@ -90,7 +76,7 @@
 </main>
 
 <script>
-  // --- Grading scales (must match app.js) ---
+  // --- Scales (must match app.js) ---
   const SCALES = {
     nigeria: [
       { letter: 'A', min: 70, points: 5 },
@@ -181,27 +167,21 @@
     const params = new URLSearchParams(location.search);
     const id = params.get('id');
 
-    // Try backend first if id is provided
     if (id) {
       try {
         const res = await fetch(`/api/getSubmission/${encodeURIComponent(id)}`, { headers: { 'Cache-Control':'no-cache' }});
         if (res.ok) {
           const data = await res.json();
           render(data);
-          // also keep a local copy for reprints
           sessionStorage.setItem('gpa_last_submission', JSON.stringify({ id, payload: data }));
           return;
         }
-      } catch(e) {
-        // fall through to session storage
-      }
+      } catch(e) { /* fall through */ }
     }
 
-    // Fallback to last local payload (from submit page)
     try {
       const saved = JSON.parse(sessionStorage.getItem('gpa_last_submission') || 'null');
       if (saved?.payload) {
-        // Normalize to expected shape of getSubmission
         const p = saved.payload;
         render({
           id: saved.id || id || '',
@@ -221,7 +201,6 @@
       }
     } catch {}
 
-    // If we get here, nothing to show
     document.getElementById('pBody').innerHTML =
       '<tr><td colspan="6" class="muted">No data found. Return to the calculator and submit again.</td></tr>';
   }
@@ -233,10 +212,23 @@
     // Header
     document.getElementById('pStudent').textContent  = studentName || '—';
     document.getElementById('pCountry').textContent  = country || '—';
-    document.getElementById('pUniversity').textContent = universityName || '';
+    const uniEl = document.getElementById('pUniversity');
+    uniEl.textContent = universityName || '';
+
     const logo = document.getElementById('pLogo');
-    if (universityLogoUrl) { logo.src = universityLogoUrl; logo.style.display='block'; }
-    else { logo.removeAttribute('src'); logo.style.display='none'; }
+    if (universityLogoUrl) {
+      logo.onload = () => { logo.style.display = 'block'; };
+      logo.onerror = () => {
+        logo.style.display = 'none';
+        const warn = document.createElement('div');
+        warn.className = 'muted';
+        warn.textContent = 'Logo failed to load. Use a direct HTTPS image URL (.png/.jpg).';
+        if (!uniEl.nextSibling || uniEl.nextSibling.textContent !== warn.textContent) uniEl.after(warn);
+      };
+      logo.src = universityLogoUrl;
+    } else {
+      logo.removeAttribute('src'); logo.style.display = 'none';
+    }
 
     // Table
     tbody.innerHTML = '';
@@ -249,15 +241,14 @@
       if (unit > 0) { totalUnits += unit; qualityPoints += unit * points; }
 
       const tr = document.createElement('tr');
-     tr.innerHTML = `
-    <td>${escapeHtml(c.courseCode || '')}</td>
-    <td>${escapeHtml(c.title || '')}</td>
-    <td>${unit}</td>
-    <td>${score}</td>
-    <td>${letter}</td>
-    <td>${points}</td>
-    `;
-
+      tr.innerHTML = `
+        <td>${escapeHtml(c.courseCode || '')}</td>
+        <td>${escapeHtml(c.title || '')}</td>
+        <td>${unit}</td>
+        <td>${score}</td>
+        <td>${letter}</td>
+        <td>${points}</td>
+      `;
       tbody.appendChild(tr);
     });
 
