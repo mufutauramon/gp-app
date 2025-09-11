@@ -144,6 +144,16 @@
 
   function norm(s) { return String(s || '').trim().toLowerCase(); }
   function normCode(s) { return norm(s).replace(/[^a-z0-9]/g, ''); }
+  function cleanLogoUrl(u) {
+  const s = String(u || '').trim();
+  if (!s) return '';
+  try {
+    const url = new URL(s);
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') return '';
+    if (s.length > 1000) return ''; // keep in sync with API limit
+    return s;
+  } catch { return ''; }
+    }
 
   function canonicalizeCourse(c) {
     const t = norm(c.title);
@@ -352,23 +362,39 @@
     render();
   }
 
-  function serializeState() {
-    // send canonicalized, de-duplicated courses (prevents dup on backend too)
-    const merged = dedupeCourses(state.courses);
-    return {
-      studentName: state.studentName || "",
-      country: state.country || "nigeria",
-      universityName: state.universityName || "",
-      universityLogoUrl: state.universityLogoUrl || "",
-      courses: merged.map(c => ({
-        title: c.title || "",
-        courseCode: c.courseCode || "",
-        unit: Number(c.unit) || 0,
-        score: Number(c.score) || 0
-      })),
-      scaleLegend: scaleSummaryText()
-    };
-  }
+//   function serializeState() {
+//     // send canonicalized, de-duplicated courses (prevents dup on backend too)
+//     const merged = dedupeCourses(state.courses);
+//     return {
+//       studentName: state.studentName || "",
+//       country: state.country || "nigeria",
+//       universityName: state.universityName || "",
+//       universityLogoUrl: state.universityLogoUrl || "",
+//       courses: merged.map(c => ({
+//         title: c.title || "",
+//         courseCode: c.courseCode || "",
+//         unit: Number(c.unit) || 0,
+//         score: Number(c.score) || 0
+//       })),
+//       scaleLegend: scaleSummaryText()
+//     };
+//   }
+
+ function serializeState() {
+  return {
+    studentName: state.studentName || "",
+    country: state.country || "nigeria",
+    universityName: state.universityName || "",
+    universityLogoUrl: cleanLogoUrl(state.universityLogoUrl),  // <— here
+    courses: state.courses.map(c => ({
+      title: c.title || "",
+      courseCode: c.courseCode || "",
+      unit: Number(c.unit) || 0,
+      score: Number(c.score) || 0
+    })),
+    scaleLegend: scaleSummaryText()
+  };
+}
 
   function validate() {
     if (!state.studentName.trim()) { toast('Please enter student name'); return false; }

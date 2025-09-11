@@ -105,17 +105,32 @@ module.exports = async function (context, req) {
     const added = [];
     const updated = [];
     try {
-      const r1 = await new sql.Request(tx)
-        .input("StudentName", sql.NVarChar(200), studentName)
-        .input("Country", sql.NVarChar(50), country)
-        .input("ScaleLegend", sql.NVarChar(400), scaleLegend)
-        .input("UniversityName", sql.NVarChar(200), universityName || null)
-        .input("UniversityLogoUrl", sql.NVarChar(512), universityLogoUrl || null)
-        .input("Fingerprint", sql.NVarChar(64), fingerprint)
-        .query(`
-          INSERT INTO dbo.Submissions (StudentName, Country, ScaleLegend, UniversityName, UniversityLogoUrl, Fingerprint)
-          OUTPUT inserted.Id
-          VALUES (@StudentName, @Country, @ScaleLegend, @UniversityName, @UniversityLogoUrl, @Fingerprint);
+     // sanitize logo URL
+function safeLogoUrl(u) {
+  const s = String(u || '').trim();
+  if (!s) return null;
+  try {
+    const url = new URL(s);
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') return null;  // no data: or file:
+    if (s.length > 1000) return null;  // avoid absurdly long strings
+    return s;
+  } catch { return null; }
+}
+const logoUrlSafe = safeLogoUrl(universityLogoUrl);
+
+const r1 = await new sql.Request(tx)
+  .input("StudentName", sql.NVarChar(200), studentName)
+  .input("Country", sql.NVarChar(50), country)
+  .input("ScaleLegend", sql.NVarChar(400), scaleLegend)
+  .input("UniversityName", sql.NVarChar(200), universityName || null)
+  .input("UniversityLogoUrl", sql.NVarChar(1024), logoUrlSafe)  // match DB size
+  .input("Fingerprint", sql.NVarChar(64), fingerprint)
+  .query(`
+    INSERT INTO dbo.Submissions (StudentName, Country, ScaleLegend, UniversityName, UniversityLogoUrl, Fingerprint)
+    OUTPUT inserted.Id
+    VALUES (@StudentName, @Country, @ScaleLegend, @UniversityName, @UniversityLogoUrl, @Fingerprint);
+  `);
+
         `);
 
       const submissionId = r1.recordset[0].Id;
