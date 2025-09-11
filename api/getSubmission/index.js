@@ -22,14 +22,17 @@ module.exports = async function (context, req) {
     const rSub = await pool.request()
       .input("Id", sql.UniqueIdentifier, id)
       .query(`
-        SELECT Id,
-               StudentName AS studentName,
-               Country     AS country,
-               ScaleLegend AS scaleLegend,
-               UniversityName AS universityName,
-               UniversityLogoUrl AS universityLogoUrl
-        FROM dbo.Submissions
-        WHERE Id=@Id
+       SELECT Id,
+       StudentName AS studentName,
+       Country     AS country,
+       ScaleLegend AS scaleLegend,
+       UniversityName AS universityName,
+       UniversityLogoUrl AS universityLogoUrl,
+       Semester AS semester,
+       AcademicYear AS academicYear
+FROM dbo.Submissions
+WHERE Id=@Id
+
       `);
     if (!rSub.recordset.length) {
       context.res = { status: 404, headers:{ "Content-Type":"application/json" }, body: { error: "not found" } };

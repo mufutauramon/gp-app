@@ -54,8 +54,10 @@ function safeLogoUrl(u) {
 
 module.exports = async function (context, req) {
   try {
-    const { studentName = "", country = "nigeria", scaleLegend = "", universityName = "", universityLogoUrl = "", courses } = req.body || {};
-
+const { studentName = "", country = "nigeria", scaleLegend = "",
+        universityName = "", universityLogoUrl = "",
+        semester = "", academicYear = "",
+        courses } = req.body || {};
     if (!studentName.trim()) return context.res = { status: 400, headers:{ "Content-Type":"application/json" }, body:{ error:"studentName required" } };
     if (!Array.isArray(courses) || courses.length === 0) return context.res = { status: 400, headers:{ "Content-Type":"application/json" }, body:{ error:"courses must be a non-empty array" } };
 

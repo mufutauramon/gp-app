@@ -74,18 +74,27 @@
     ]
   };
 
+  const SEMESTERS = {
+    nigeria: ['First Semester', 'Second Semester'],
+    us: ['Fall', 'Spring', 'Winter'],
+    us_plusminus: ['Fall', 'Spring', 'Winter'],
+    default: ['Term 1', 'Term 2']
+  };
+
   // ---------------- Constants & state ----------------
   const API_BASE = '/api';
-  const STORAGE_KEY = 'gpa_last_submission';   // for print page
-  const LAST_SAVED_KEY = 'gpa_last_saved_fp';  // { fp, id } for dedupe
-  let submitting = false; // guard against double-click
+  const STORAGE_KEY = 'gpa_last_submission';
+  const LAST_SAVED_KEY = 'gpa_last_saved_fp';
+  let submitting = false;
 
   const state = {
     studentName: '',
     country: 'nigeria',
+    semester: '',
+    academicYear: '',
     universityName: '',
     universityLogoUrl: '',
-    courses: [] // start empty; user adds courses
+    courses: []
   };
 
   // ---------------- Elements ----------------
@@ -93,6 +102,8 @@
   const rowTpl = document.getElementById('row-template');
   const nameInput = document.getElementById('studentName');
   const countrySelect = document.getElementById('countrySelect');
+  const semesterSelect = document.getElementById('semesterSelect');
+  const yearInput = document.getElementById('yearInput');
   const uniInput  = document.getElementById('universityName');
   const logoInput = document.getElementById('universityLogo');
   const logoPreview = document.getElementById('logoPreview');
@@ -102,6 +113,13 @@
   const statUnits = document.getElementById('statUnits');
   const statGpa = document.getElementById('statGpa');
   const changeBox = document.getElementById('changeSummary');
+
+  // Modal elements
+  const modalBackdrop = document.getElementById('scoreModalBackdrop');
+  const modalInput = document.getElementById('scoreModalInput');
+  const modalOk = document.getElementById('scoreOk');
+  const modalCancel = document.getElementById('scoreCancel');
+  let modalCourseRef = null; // store course object being edited
 
   // Buttons
   document.getElementById('addBtn')?.addEventListener('click', addCourse);
@@ -113,15 +131,42 @@
   nameInput?.addEventListener('input', () => { state.studentName = nameInput.value; renderStats(); });
   countrySelect?.addEventListener('change', () => {
     state.country = countrySelect.value;
+    refreshSemesterOptions();
     renderScale(); renderTable(); renderStats();
   });
+  semesterSelect?.addEventListener('change', () => { state.semester = semesterSelect.value; });
+  yearInput?.addEventListener('input', () => { state.academicYear = yearInput.value; });
   uniInput?.addEventListener('input', () => { state.universityName = uniInput.value; });
   logoInput?.addEventListener('input', () => { state.universityLogoUrl = logoInput.value; updateLogoPreview(); });
+
+  // Modal wiring
+  modalOk?.addEventListener('click', () => {
+    const v = Number(modalInput.value);
+    if (!Number.isFinite(v) || v < 0 || v > 100) { toast('Enter a score 0–100'); return; }
+    if (modalCourseRef) modalCourseRef.score = v;
+    closeScoreModal();
+    renderTable(); renderStats();
+  });
+  modalCancel?.addEventListener('click', () => { closeScoreModal(); });
 
   // ---------------- Helpers ----------------
   function uid() { return Math.random().toString(36).slice(2, 10); }
   function currentScale() { return SCALES[state.country]; }
   function maxPoints() { return Math.max(...currentScale().map(r => Number(r.points) || 0)); }
+
+  function refreshSemesterOptions() {
+    const opts = SEMESTERS[state.country] || SEMESTERS.default;
+    semesterSelect.innerHTML = '';
+    opts.forEach(v => {
+      const o = document.createElement('option');
+      o.value = v; o.textContent = v;
+      semesterSelect.appendChild(o);
+    });
+    if (!state.semester || !opts.includes(state.semester)) {
+      state.semester = opts[0];
+    }
+    semesterSelect.value = state.semester;
+  }
 
   function gradeFromScore(score) {
     const n = Number(score);
@@ -165,11 +210,28 @@
     logoPreview.src = url;
   }
 
+  // Modal helpers
+  function openScoreModal(courseObj){
+    modalCourseRef = courseObj;
+    modalInput.value = Number(courseObj.score ?? 0);
+    modalBackdrop.style.display = 'flex';
+    setTimeout(()=> modalInput.focus(), 0);
+  }
+  function closeScoreModal(){
+    modalCourseRef = null;
+    modalBackdrop.style.display = 'none';
+  }
+
   // ---------------- Rendering ----------------
-  function render() { renderScale(); renderTable(); renderStats(); updateLogoPreview(); }
+  function render() {
+    refreshSemesterOptions();
+    renderScale();
+    renderTable();
+    renderStats();
+    updateLogoPreview();
+  }
 
   function renderScale() {
-    if (!scaleList) return;
     scaleList.innerHTML = '';
     countrySelect.value = state.country;
     scaleSummary.textContent = 'Scale: ' + scaleSummaryText();
@@ -186,7 +248,6 @@
   }
 
   function renderTable() {
-    if (!tbody || !rowTpl) return;
     tbody.innerHTML = '';
 
     if (state.courses.length === 0) {
@@ -201,27 +262,27 @@
       const codeEl   = tr.querySelector('.code');
       const titleEl  = tr.querySelector('.title');
       const unitEl   = tr.querySelector('.unit');
-      const scoreEl  = tr.querySelector('.score');
+      const scoreBtn = tr.querySelector('.score-btn');
       const letterEl = tr.querySelector('.letter');
       const pointsEl = tr.querySelector('.points');
       const removeBtn = tr.querySelector('.remove');
 
       codeEl.value = c.courseCode || '';
       titleEl.value = c.title || '';
-      unitEl.value = c.unit ?? '';
-      scoreEl.value = c.score ?? '';
+      unitEl.value = c.unit ?? 0;
 
       const { letter, points } = gradeFromScore(c.score);
       letterEl.textContent = letter;
       pointsEl.textContent = points;
+      scoreBtn.textContent = Number.isFinite(Number(c.score)) ? String(c.score) : 'Set';
 
       if (!(Number(c.unit) > 0)) unitEl.classList.add('invalid'); else unitEl.classList.remove('invalid');
-      if (!(Number(c.score) >= 0 && Number(c.score) <= 100)) scoreEl.classList.add('invalid'); else scoreEl.classList.remove('invalid');
 
       codeEl.addEventListener('input', (e)  => { c.courseCode = e.target.value; });
       titleEl.addEventListener('input', (e) => { c.title = e.target.value; });
       unitEl.addEventListener('input', (e)  => { c.unit = e.target.valueAsNumber; renderStats(); renderTable(); });
-      scoreEl.addEventListener('input', (e) => { c.score = e.target.valueAsNumber; renderStats(); renderTable(); });
+      scoreBtn.addEventListener('click', ()   => { openScoreModal(c); });
+
       removeBtn.addEventListener('click', () => removeCourse(c.id));
 
       tbody.appendChild(tr);
@@ -259,9 +320,12 @@
 
   function resetAll() {
     state.studentName = '';
-    if (nameInput) nameInput.value = '';
+    nameInput && (nameInput.value = '');
     state.country = 'nigeria';
-    if (countrySelect) countrySelect.value = 'nigeria';
+    countrySelect && (countrySelect.value = 'nigeria');
+    refreshSemesterOptions();
+    state.academicYear = '';
+    yearInput && (yearInput.value = '');
     state.universityName = '';
     uniInput && (uniInput.value = '');
     state.universityLogoUrl = '';
@@ -274,6 +338,8 @@
     return {
       studentName: state.studentName || "",
       country: state.country || "nigeria",
+      semester: state.semester || "",
+      academicYear: (state.academicYear || "").slice(0, 16),
       universityName: state.universityName || "",
       universityLogoUrl: cleanLogoUrl(state.universityLogoUrl),
       courses: state.courses.map(c => ({
@@ -290,7 +356,12 @@
     if (!state.studentName.trim()) { toast('Please enter student name'); return false; }
     if (!state.courses.length) { toast('Add at least one course'); return false; }
 
-    // No duplicate rows in the same payload:
+    // Year: allow 4-digit or "YYYY/YY"
+    const y = (state.academicYear || '').trim();
+    if (y && !/^\d{4}([\/-]\d{2})?$/.test(y)) {
+      toast('Year format: 2025 or 2024/25'); return false;
+    }
+
     const seen = new Set();
     for (const c of state.courses) {
       const title = String(c.title || '').trim();
@@ -298,7 +369,6 @@
       if (!title && !code) { toast('Course needs a title or a code'); return false; }
       if (!(Number(c.unit) > 0)) { toast('Units must be > 0'); return false; }
       if (!(Number(c.score) >= 0 && Number(c.score) <= 100)) { toast('Scores must be 0–100'); return false; }
-      // simple dedupe: prefer code key, else title key
       const key = (code ? code.toLowerCase().replace(/[^a-z0-9]/g,'') : title.toLowerCase()) + '|' + (Number(c.unit)||0) + '|' + (Number(c.score)||0);
       if (seen.has(key)) { toast(`Duplicate course in this list`); return false; }
       seen.add(key);
@@ -306,12 +376,14 @@
     return true;
   }
 
-  // Fingerprint helpers for dedupe (same as earlier versions)
+  // Fingerprint helpers for dedupe
   function normalizePayload(p) {
     const clean = s => String(s || '').trim().toLowerCase();
     return {
       studentName: clean(p.studentName),
       country: clean(p.country),
+      semester: clean(p.semester),
+      academicYear: clean(p.academicYear),
       courses: (p.courses || [])
         .map(c => ({
           title: clean(c.title),
@@ -340,10 +412,10 @@
     return sha256Hex(JSON.stringify(normalizePayload(payload)));
   }
 
-  // ---------------- Submit (duplicate smart) ----------------
+  // ---------------- Submit ----------------
   async function onSubmit() {
     try {
-      if (submitting) return;          // block double-clicks
+      if (submitting) return;
       if (!validate()) return;
 
       submitting = true;
@@ -353,7 +425,6 @@
       const payload = serializeState();
       const clientFp = await makeClientFingerprint(payload);
 
-      // Silent short-circuit if identical to last saved
       let last = null;
       try { last = JSON.parse(localStorage.getItem(LAST_SAVED_KEY) || 'null'); } catch {}
       if (last && last.fp === clientFp && last.id) {
@@ -362,7 +433,6 @@
         return;
       }
 
-      // POST to backend
       const res = await fetch(`${API_BASE}/submissions`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-cache' },
@@ -380,7 +450,6 @@
         return;
       }
 
-      // If API sent change summary, show it briefly
       if (changeBox && (Array.isArray(data.added) || Array.isArray(data.updated))) {
         const lines = [];
         (data.added || []).forEach(x => lines.push(`Added ${x.courseCode ? x.courseCode+' ' : ''}${x.title || ''} (${x.score})`));
@@ -399,7 +468,6 @@
         }
       }
 
-      // Save mapping and go to print
       localStorage.setItem(LAST_SAVED_KEY, JSON.stringify({ fp: clientFp, id: data.id }));
       sessionStorage.setItem(STORAGE_KEY, JSON.stringify({ id: data.id, payload }));
       window.location.href = `./print.html?id=${encodeURIComponent(data.id)}`;
@@ -417,6 +485,10 @@
 
   // ---------------- Init ----------------
   document.addEventListener('DOMContentLoaded', () => {
+    // default year = current year
+    const y = new Date().getFullYear();
+    state.academicYear = String(y);
+    if (yearInput) yearInput.value = state.academicYear;
     render();
   });
 })();

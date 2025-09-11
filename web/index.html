@@ -4,15 +4,14 @@
   <meta charset="UTF-8" />
   <title>GPA / Result Calculator</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <!-- Your global stylesheet (keep it) -->
   <link rel="stylesheet" href="./styles.css" />
   <style>
-    /* Minimal helpers for new UI bits */
     body { background:#0b1220; color:#e5e7eb; font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; }
     main { max-width: 1100px; margin: 0 auto; padding: 16px; }
     h1 { font-size: 22px; margin: 0; }
     .row { display:flex; gap:12px; align-items:center; flex-wrap: wrap; margin: 10px 0; }
     label { min-width: 120px; }
+    input, select, button { font-size: 14px; }
     input, select { background:#0e1628; color:#e5e7eb; border:1px solid #1f2937; border-radius:8px; padding:8px 10px; }
     input.invalid { border-color:#ef4444; }
     .btn { padding:10px 12px; border-radius:8px; border:1px solid #374151; background:#111827; color:#e5e7eb; cursor:pointer; }
@@ -24,24 +23,30 @@
     .badge { display:inline-block; min-width:36px; text-align:center; border-radius:8px; border:1px solid #2b3141; padding:2px 8px; background:#0e1628; margin-right:8px; }
     .stats { display:flex; gap:12px; flex-wrap:wrap; margin: 8px 0 12px; }
     .stat { background:#0e1628; border:1px solid #1f2937; padding:10px 12px; border-radius:8px; }
-    .noprint { }
     #toast { position:fixed; left:50%; bottom:20px; transform:translateX(-50%); background:#0b1220; color:#fff; border:1px solid #3b4252; padding:10px 14px; border-radius:10px; display:none; z-index:9999; }
-    /* Vertical scale at bottom */
     .scale-vert { display:grid; grid-template-columns: 1fr; gap:6px 12px; }
     .footer-card { margin-top:16px; padding:12px; border:1px solid #1f2937; border-radius:10px; background:#0e1628; }
-    @media print{ .noprint{ display:none !important; } body { background:#fff; color:#000; } .grid th,.grid td{ border-color:#888; } }
+    footer { margin-top: 24px; font-size: 14px; display:flex; gap:16px; color:#9ca3af; }
+    footer a { color:#9ca3af; text-decoration: underline; }
+    /* Modal for score input */
+    .modal-backdrop { position:fixed; inset:0; background:rgba(0,0,0,.5); display:none; align-items:center; justify-content:center; z-index:1000; }
+    .modal { background:#0e1628; border:1px solid #1f2937; border-radius:10px; padding:16px; width:300px; }
+    .modal h3 { margin:0 0 10px; font-size:16px; }
+    .modal .row { margin:8px 0; }
+    .modal input { width:100%; }
+    .modal .actions { display:flex; gap:8px; justify-content:flex-end; margin-top:12px; }
+    .score-btn { padding:6px 8px; border-radius:8px; border:1px solid #374151; background:#111827; color:#e5e7eb; }
   </style>
 </head>
 <body>
   <main>
-    <!-- Always-show disclaimer -->
     <div class="banner">
       <strong>Disclaimer:</strong> This is <em>not</em> an official transcript. Results are user-entered and may be inaccurate.
     </div>
 
     <header class="row" style="justify-content:space-between;">
       <h1>Result / GPA Calculator</h1>
-      <div class="row noprint">
+      <div class="row">
         <button id="printBtn" class="btn" type="button">Print</button>
       </div>
     </header>
@@ -50,6 +55,9 @@
     <section class="row">
       <label for="studentName">Student name</label>
       <input id="studentName" type="text" placeholder="e.g., Jane Doe" />
+    </section>
+
+    <section class="row">
       <label for="countrySelect">Country scale</label>
       <select id="countrySelect">
         <option value="nigeria">Nigeria</option>
@@ -61,6 +69,12 @@
         <option value="india">India (10pt)</option>
         <option value="ghana">Ghana</option>
       </select>
+
+      <label for="semesterSelect">Semester/Term</label>
+      <select id="semesterSelect"></select>
+
+      <label for="yearInput">Year</label>
+      <input id="yearInput" type="text" placeholder="e.g., 2024 or 2024/25" style="width:140px;">
     </section>
 
     <section class="row">
@@ -72,11 +86,11 @@
       <label for="universityLogo">Logo URL</label>
       <input id="universityLogo" type="url" placeholder="https://example.com/logo.png" style="min-width:360px;">
       <img id="logoPreview" alt="Logo preview" style="height:40px; display:none; border:1px solid #2b3141; border-radius:6px;">
-      <small class="muted">Use a direct HTTPS image link (.png/.jpg). Share pages (e.g., Drive) won’t work.</small>
+      <small class="muted">Use a direct HTTPS image link (.png/.jpg). Share pages won’t work.</small>
     </section>
 
     <!-- Actions -->
-    <section class="row noprint">
+    <section class="row">
       <button id="addBtn" class="btn" type="button">Add course</button>
       <button id="resetBtn" class="btn" type="button">Reset</button>
       <button id="submitBtn" class="btn" type="button">Submit</button>
@@ -90,7 +104,7 @@
     </section>
 
     <!-- Change summary after submit -->
-    <div id="changeSummary" class="noprint muted" style="display:none; margin:8px 0;"></div>
+    <div id="changeSummary" class="muted" style="display:none; margin:8px 0;"></div>
 
     <!-- Table -->
     <section>
@@ -103,7 +117,7 @@
             <th>Score</th>
             <th>Grade</th>
             <th>Points</th>
-            <th class="noprint"></th>
+            <th></th>
           </tr>
         </thead>
         <tbody id="tbody">
@@ -117,10 +131,11 @@
           <td><input class="code"  type="text"  placeholder="BIO101"></td>
           <td><input class="title" type="text"  placeholder="Biology 101"></td>
           <td><input class="unit"  type="number" min="0" step="1"></td>
-          <td><input class="score" type="number" min="0" max="100" step="1"></td>
+          <!-- Score is a BUTTON that opens a modal -->
+          <td><button class="score-btn" type="button">Set</button></td>
           <td class="letter">—</td>
           <td class="points">0</td>
-          <td class="noprint"><button class="remove btn" type="button">×</button></td>
+          <td><button class="remove btn" type="button">×</button></td>
         </tr>
       </template>
     </section>
@@ -130,7 +145,24 @@
       <div class="muted" id="scaleSummary">Scale: —</div>
       <div id="scaleList" class="scale-vert" style="margin-top:8px;"></div>
     </section>
+
+    <footer>
+      <a href="./privacy.html">Privacy Policy</a>
+      <a href="./terms.html">Terms of Use</a>
+    </footer>
   </main>
+
+  <!-- Score Modal -->
+  <div id="scoreModalBackdrop" class="modal-backdrop">
+    <div class="modal">
+      <h3>Enter Score (0–100)</h3>
+      <div class="row"><input id="scoreModalInput" type="number" min="0" max="100" step="1" /></div>
+      <div class="actions">
+        <button id="scoreCancel" class="btn" type="button">Cancel</button>
+        <button id="scoreOk" class="btn" type="button">OK</button>
+      </div>
+    </div>
+  </div>
 
   <div id="toast"></div>
   <script src="./app.js" defer></script>
