@@ -310,12 +310,12 @@
     if (btn) { btn.disabled = true; btn.textContent = 'Submitting...'; }
 
     const payload = serializeState();
-    const fp = await makeClientFingerprint(payload);
+    const clientFp = await makeClientFingerprint(payload);
 
     // ---- Pre-submit short-circuit: identical to last saved
     let last = null;
     try { last = JSON.parse(localStorage.getItem(LAST_SAVED_KEY) || 'null'); } catch {}
-    if (last && last.fp === fp && last.id) {
+    if (last && last.fp === clientFp && last.id) {
       toast('No changes detected. Opening your existing result…', 3000);
       sessionStorage.setItem(STORAGE_KEY, JSON.stringify({ id: last.id, payload }));
       window.location.href = `./print.html?id=${encodeURIComponent(last.id)}`;
@@ -334,39 +334,63 @@
     let data = {};
     try { data = text ? JSON.parse(text) : {}; } catch {}
 
-    // Normalize fields we depend on
-    const returnedId = data && data.id ? data.id : null;
-    const serverSaysDuplicate = !!data.duplicate || status === 409;
+    // Expect your API to return a full object on 200 like:
+    // { id, studentName, country, scaleLegend, courses: [...] }
+    const returnedId = data?.id || null;
 
-    // ---- Post-submit classification (works even if server only returns 200)
+    // Compute server-side fp (from the response body) so we can classify 200 = duplicate vs new
+    // We only need fields our normalizePayload() uses.
+    let serverFp = null;
+    if (data && Array.isArray(data.courses)) {
+      serverFp = await makeClientFingerprint({
+        studentName: data.studentName,
+        country: data.country,
+        courses: data.courses
+      });
+    }
+
     // Refresh 'last' in case it changed during submit
     try { last = JSON.parse(localStorage.getItem(LAST_SAVED_KEY) || 'null'); } catch {}
 
-    if (returnedId) {
-      // same id + same fp == truly no change (e.g., re-submit)
-      const sameAsLast = !!(last && last.fp === fp && last.id === returnedId);
-
-      if (serverSaysDuplicate && !sameAsLast) {
-        toast('This submission already exists. Opening saved copy…', 3000);
-      } else if (sameAsLast) {
+    // Classification rules (don’t depend on duplicate flag or 409):
+    // - If serverFp === clientFp: the server is giving us the same dataset we just submitted.
+    //   If returnedId matches the last id we already knew, it’s “No changes…”.
+    //   Otherwise, it’s the same data found on the server → “already exists…”.
+    // - Else: treat as a new save.
+    if (serverFp && serverFp === clientFp) {
+      if (last && last.fp === clientFp && last.id && returnedId && returnedId === last.id) {
         toast('No changes detected. Opening your existing result…', 3000);
+      } else {
+        toast('This submission already exists. Opening saved copy…', 3000);
       }
-      // Save as the latest known mapping and go to print
-      localStorage.setItem(LAST_SAVED_KEY, JSON.stringify({ fp, id: returnedId }));
+      const finalId = returnedId || (last && last.id);
+      if (!finalId) {
+        alert('Save succeeded but no id returned.'); resetSubmitBtn(); return;
+      }
+      localStorage.setItem(LAST_SAVED_KEY, JSON.stringify({ fp: clientFp, id: finalId }));
+      sessionStorage.setItem(STORAGE_KEY, JSON.stringify({ id: finalId, payload }));
+      window.location.href = `./print.html?id=${encodeURIComponent(finalId)}`;
+      return;
+    }
+
+    // If we got here: treat 200/201 as a fresh save
+    if ((status === 200 || status === 201) && returnedId) {
+      localStorage.setItem(LAST_SAVED_KEY, JSON.stringify({ fp: clientFp, id: returnedId }));
       sessionStorage.setItem(STORAGE_KEY, JSON.stringify({ id: returnedId, payload }));
       window.location.href = `./print.html?id=${encodeURIComponent(returnedId)}`;
       return;
     }
 
-    // If we got a 409 with no id, try to fall back to last id
-    if (status === 409 && last?.id) {
+    // Fallbacks
+    if (status === 409 && (last?.id || returnedId)) {
+      const finalId = returnedId || last.id;
       toast('This submission already exists. Opening saved copy…', 3000);
-      sessionStorage.setItem(STORAGE_KEY, JSON.stringify({ id: last.id, payload }));
-      window.location.href = `./print.html?id=${encodeURIComponent(last.id)}`;
+      localStorage.setItem(LAST_SAVED_KEY, JSON.stringify({ fp: clientFp, id: finalId }));
+      sessionStorage.setItem(STORAGE_KEY, JSON.stringify({ id: finalId, payload }));
+      window.location.href = `./print.html?id=${encodeURIComponent(finalId)}`;
       return;
     }
 
-    // Anything else => failure
     alert('Save failed: ' + (text || status));
     resetSubmitBtn();
   } catch (e) {
