@@ -124,6 +124,18 @@
           <tr><td colspan="7" class="muted">No courses yet. Click <strong>Add course</strong> to begin.</td></tr>
         </tbody>
       </table>
+      <!-- Score Modal (needed by app.js) -->
+    <div id="scoreModalBackdrop" class="modal-backdrop">
+    <div class="modal">
+    <h3>Enter Score (0–100)</h3>
+    <div class="row"><input id="scoreModalInput" type="number" min="0" max="100" step="1" /></div>
+    <div class="actions">
+      <button id="scoreCancel" class="btn" type="button">Cancel</button>
+      <button id="scoreOk" class="btn" type="button">OK</button>
+     </div>
+     </div>
+     </div>
+
 
       <!-- Row template -->
       <template id="row-template">

@@ -1,6 +1,6 @@
 'use strict';
 
-// Simple global error hook so you can see errors quickly
+// Show any JS errors on the page too (helps debugging in production)
 window.addEventListener('error', (e) => {
   console.error('JS error:', e.error || e.message);
   const t = document.getElementById('toast');
@@ -123,13 +123,13 @@ window.addEventListener('error', (e) => {
   const statGpa = document.getElementById('statGpa');
   const changeBox = document.getElementById('changeSummary');
 
-  // Buttons
+  // ---------- Buttons wiring ----------
   document.getElementById('addBtn').addEventListener('click', addCourse);
   document.getElementById('resetBtn').addEventListener('click', resetAll);
   document.getElementById('printBtn').addEventListener('click', () => window.print());
   document.getElementById('submitBtn').addEventListener('click', (e) => { e.preventDefault(); onSubmit(); });
 
-  // Inputs
+  // ---------- Input wiring ----------
   nameInput.addEventListener('input', () => { state.studentName = nameInput.value; renderStats(); });
   countrySelect.addEventListener('change', () => { state.country = countrySelect.value; refreshSemesterOptions(); renderScale(); renderTable(); renderStats(); });
   semesterSelect.addEventListener('change', () => { state.semester = semesterSelect.value; });
@@ -249,6 +249,30 @@ window.addEventListener('error', (e) => {
     statGpa.textContent = `${gpa.toFixed(2)} / ${maxPoints().toFixed(2)}`;
   }
 
+  // ---------- Actions (the ones you were missing) ----------
+  function addCourse() {
+    state.courses.push({ id: uid(), courseCode: '', title: '', unit: 0, score: null });
+    render();
+  }
+  function resetAll() {
+    state.studentName = '';
+    state.country = 'nigeria';
+    state.semester = '';
+    state.academicYear = '';
+    state.universityName = '';
+    state.universityLogoUrl = '';
+    state.courses = [];
+    // reset inputs
+    nameInput.value = '';
+    countrySelect.value = 'nigeria';
+    semesterSelect.innerHTML = '';
+    yearInput.value = '';
+    uniInput.value = '';
+    logoInput.value = '';
+    updateLogoPreview();
+    render();
+  }
+
   // ---------- Modal (score) ----------
   const modalBackdrop = document.getElementById('scoreModalBackdrop');
   const modalInput = document.getElementById('scoreModalInput');
@@ -258,18 +282,22 @@ window.addEventListener('error', (e) => {
 
   function openScoreModal(courseObj){
     modalCourseRef = courseObj;
-    modalInput.value = Number(courseObj.score ?? 0);
-    modalBackdrop.style.display = 'flex';
-    setTimeout(()=> modalInput.focus(), 0);
+    if (modalInput) modalInput.value = Number(courseObj.score ?? 0);
+    if (modalBackdrop) {
+      modalBackdrop.style.display = 'flex';
+      setTimeout(()=> modalInput && modalInput.focus(), 0);
+    }
   }
-  function closeScoreModal(){ modalCourseRef = null; modalBackdrop.style.display = 'none'; }
-  modalOk.addEventListener('click', () => {
-    const v = Number(modalInput.value);
-    if (!Number.isFinite(v) || v < 0 || v > 100) { toast('Enter a score 0–100'); return; }
-    if (modalCourseRef) modalCourseRef.score = v;
-    closeScoreModal(); renderTable(); renderStats();
-  });
-  modalCancel.addEventListener('click', closeScoreModal);
+  function closeScoreModal(){ modalCourseRef = null; if (modalBackdrop) modalBackdrop.style.display = 'none'; }
+  if (modalOk) {
+    modalOk.addEventListener('click', () => {
+      const v = Number(modalInput.value);
+      if (!Number.isFinite(v) || v < 0 || v > 100) { toast('Enter a score 0–100'); return; }
+      if (modalCourseRef) modalCourseRef.score = v;
+      closeScoreModal(); renderTable(); renderStats();
+    });
+  }
+  if (modalCancel) modalCancel.addEventListener('click', closeScoreModal);
 
   // ---------- Validation & serialization ----------
   function serializeState() {
