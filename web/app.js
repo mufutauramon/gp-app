@@ -358,25 +358,44 @@ window.addEventListener('error', (e) => {
 
   // ---------- Validation & serialization ----------
   function serializeState() {
-    return {
-      studentName: state.studentName || "",
-      country: state.country || "nigeria",
-      universityName: state.universityName || "",
-      universityLogoUrl: cleanLogoUrl(state.universityLogoUrl),
-      scaleLegend: scaleSummaryText(),
-      // NEW: terms array
-      terms: state.terms.map(t => ({
-        semester: t.semester || "",
-        academicYear: (t.academicYear || "").slice(0, 16),
-        courses: (t.courses || []).map(c => ({
-          courseCode: c.courseCode || "",
-          title: c.title || "",
-          unit: Number(c.unit) || 0,
-          score: Number(c.score) || 0
-        }))
-      }))
-    };
+  // Build full multi-term structure
+  const terms = state.terms.map(t => ({
+    semester: t.semester || "",
+    academicYear: (t.academicYear || "").slice(0, 16),
+    courses: (t.courses || []).map(c => ({
+      courseCode: c.courseCode || "",
+      title: c.title || "",
+      unit: Number(c.unit) || 0,
+      score: Number(c.score) || 0
+    }))
+  }));
+
+  // Build a legacy, flattened "courses" array so the old API keeps working
+  const flattened = [];
+  for (const t of terms) {
+    for (const c of t.courses) {
+      flattened.push({
+        courseCode: c.courseCode,
+        title: c.title,
+        unit: c.unit,
+        score: c.score,
+        // include term info for future server upgrades (safe to ignore today)
+        semester: t.semester,
+        academicYear: t.academicYear
+      });
+    }
   }
+
+  return {
+    studentName: state.studentName || "",
+    country: state.country || "nigeria",
+    universityName: state.universityName || "",
+    universityLogoUrl: cleanLogoUrl(state.universityLogoUrl),
+    scaleLegend: scaleSummaryText(),
+    terms,             // new rich structure (used by print.html)
+    courses: flattened // legacy field (keeps current API happy)
+  };
+}
   function validate() {
     if (!state.studentName.trim()) { toast('Please enter student name'); return false; }
     if (!state.terms.length) { toast('Add at least one term'); return false; }
