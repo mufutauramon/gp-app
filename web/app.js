@@ -1,6 +1,15 @@
 'use strict';
 
+// Simple global error hook so you can see errors quickly
+window.addEventListener('error', (e) => {
+  console.error('JS error:', e.error || e.message);
+  const t = document.getElementById('toast');
+  if (t) { t.textContent = 'JavaScript error: ' + (e.message || 'see console'); t.style.display = 'block'; }
+});
+
 (function () {
+  console.log('app.js loaded');
+
   // ---------- Config ----------
   const API_BASE = '/api';
   const STORAGE_KEY = 'gpa_last_submission';
@@ -115,18 +124,18 @@
   const changeBox = document.getElementById('changeSummary');
 
   // Buttons
-  document.getElementById('addBtn')?.addEventListener('click', addCourse);
-  document.getElementById('resetBtn')?.addEventListener('click', resetAll);
-  document.getElementById('printBtn')?.addEventListener('click', () => window.print());
-  document.getElementById('submitBtn')?.addEventListener('click', (e) => { e.preventDefault(); onSubmit(); });
+  document.getElementById('addBtn').addEventListener('click', addCourse);
+  document.getElementById('resetBtn').addEventListener('click', resetAll);
+  document.getElementById('printBtn').addEventListener('click', () => window.print());
+  document.getElementById('submitBtn').addEventListener('click', (e) => { e.preventDefault(); onSubmit(); });
 
   // Inputs
-  nameInput?.addEventListener('input', () => { state.studentName = nameInput.value; renderStats(); });
-  countrySelect?.addEventListener('change', () => { state.country = countrySelect.value; refreshSemesterOptions(); renderScale(); renderTable(); renderStats(); });
-  semesterSelect?.addEventListener('change', () => { state.semester = semesterSelect.value; });
-  yearInput?.addEventListener('input', () => { state.academicYear = yearInput.value; });
-  uniInput?.addEventListener('input', () => { state.universityName = uniInput.value; });
-  logoInput?.addEventListener('input', () => { state.universityLogoUrl = logoInput.value; updateLogoPreview(); });
+  nameInput.addEventListener('input', () => { state.studentName = nameInput.value; renderStats(); });
+  countrySelect.addEventListener('change', () => { state.country = countrySelect.value; refreshSemesterOptions(); renderScale(); renderTable(); renderStats(); });
+  semesterSelect.addEventListener('change', () => { state.semester = semesterSelect.value; });
+  yearInput.addEventListener('input', () => { state.academicYear = yearInput.value; });
+  uniInput.addEventListener('input', () => { state.universityName = uniInput.value; });
+  logoInput.addEventListener('input', () => { state.universityLogoUrl = logoInput.value; updateLogoPreview(); });
 
   // ---------- Helpers ----------
   function goToPrint(id) {
@@ -157,8 +166,7 @@
     catch { return ''; }
   }
   function updateLogoPreview() {
-    if (!logoPreview) return;
-    const url = cleanLogoUrl(logoInput?.value);
+    const url = cleanLogoUrl(logoInput.value);
     if (!url) { logoPreview.style.display='none'; logoPreview.removeAttribute('src'); return; }
     logoPreview.onload = () => { logoPreview.style.display='inline-block'; };
     logoPreview.onerror = () => { logoPreview.style.display='none'; logoPreview.removeAttribute('src'); };
@@ -255,13 +263,13 @@
     setTimeout(()=> modalInput.focus(), 0);
   }
   function closeScoreModal(){ modalCourseRef = null; modalBackdrop.style.display = 'none'; }
-  modalOk?.addEventListener('click', () => {
+  modalOk.addEventListener('click', () => {
     const v = Number(modalInput.value);
     if (!Number.isFinite(v) || v < 0 || v > 100) { toast('Enter a score 0–100'); return; }
     if (modalCourseRef) modalCourseRef.score = v;
     closeScoreModal(); renderTable(); renderStats();
   });
-  modalCancel?.addEventListener('click', closeScoreModal);
+  modalCancel.addEventListener('click', closeScoreModal);
 
   // ---------- Validation & serialization ----------
   function serializeState() {
@@ -375,7 +383,6 @@
         return;
       }
 
-      // optional change summary
       if (changeBox && (Array.isArray(data.added) || Array.isArray(data.updated))) {
         const lines = [];
         (data.added || []).forEach(x => lines.push(`Added ${x.courseCode ? x.courseCode+' ' : ''}${x.title || ''} (${x.score})`));
@@ -403,10 +410,9 @@
 
   // ---------- Init ----------
   document.addEventListener('DOMContentLoaded', () => {
-    // default year
     const y = new Date().getFullYear();
     state.academicYear = String(y);
-    const yi = document.getElementById('yearInput'); if (yi) yi.value = state.academicYear;
+    yearInput.value = state.academicYear;
     render();
   });
 })();
