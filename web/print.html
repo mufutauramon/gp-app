@@ -26,6 +26,8 @@
     .muted { color:#9ca3af; }
     footer.links { margin-top:16px; display:flex; gap:16px; color:#9ca3af; }
     footer.links a { color:#9ca3af; text-decoration: underline; }
+    .term-title { margin-top:16px; font-size:16px; font-weight:600; }
+    .term-gpa { margin:4px 0 6px; color:#9ca3af; }
     @media print{ .noprint { display:none !important; } body { background:#fff; color:#000; } .grid th, .grid td { border-color:#888; } }
   </style>
 </head>
@@ -48,29 +50,12 @@
   <section class="row">
     <div class="stat"><strong>Student:</strong> <span id="pStudent">—</span></div>
     <div class="stat"><strong>Country:</strong> <span id="pCountry">—</span></div>
-    <div class="stat"><strong>Semester:</strong> <span id="pSemester">—</span></div>
-    <div class="stat"><strong>Year:</strong> <span id="pYear">—</span></div>
     <div class="stat"><strong>Total Units:</strong> <span id="pUnits">0</span></div>
-    <div class="stat"><strong>GPA:</strong> <span id="pGpa">0.00</span></div>
+    <div class="stat"><strong>Cumulative GPA:</strong> <span id="pGpa">0.00</span></div>
   </section>
 
-  <section>
-    <table class="grid">
-      <thead>
-        <tr>
-          <th>Code</th>
-          <th>Course</th>
-          <th>Units</th>
-          <th>Score</th>
-          <th>Grade</th>
-          <th>Points</th>
-        </tr>
-      </thead>
-      <tbody id="pBody">
-        <tr><td colspan="6" class="muted">Loading…</td></tr>
-      </tbody>
-    </table>
-  </section>
+  <!-- Terms will be injected here -->
+  <section id="pTerms"></section>
 
   <footer>
     <h3 style="margin:16px 0 8px 0;">Grading Scale</h3>
@@ -175,54 +160,58 @@
     const params = new URLSearchParams(location.search);
     const id = params.get('id');
 
+    // Prefer session payload (it has the freshest form structure)
+    let sessionPayload = null;
+    try {
+      const saved = JSON.parse(sessionStorage.getItem('gpa_last_submission') || 'null');
+      sessionPayload = saved?.payload || null;
+    } catch {}
+
     if (id) {
       try {
         const res = await fetch(`/api/getSubmission/${encodeURIComponent(id)}`, { headers: { 'Cache-Control':'no-cache' }});
         if (res.ok) {
-          const data = await res.json();
-          render(data);
-          sessionStorage.setItem('gpa_last_submission', JSON.stringify({ id, payload: data }));
+          const apiData = await res.json();
+          // Merge API and session payload (session overrides when present)
+          const merged = mergeData(apiData, sessionPayload);
+          render(merged);
+          // keep session in sync
+          sessionStorage.setItem('gpa_last_submission', JSON.stringify({ id, payload: merged }));
           return;
         }
       } catch(e) {}
     }
 
-    try {
-      const saved = JSON.parse(sessionStorage.getItem('gpa_last_submission') || 'null');
-      if (saved?.payload) {
-        const p = saved.payload;
-        render({
-          id: saved.id || id || '',
-          studentName: p.studentName,
-          country: p.country,
-          semester: p.semester || '',
-          academicYear: p.academicYear || '',
-          scaleLegend: p.scaleLegend,
-          universityName: p.universityName || '',
-          universityLogoUrl: p.universityLogoUrl || '',
-          courses: (p.courses || []).map(c => ({
-            title: c.title,
-            courseCode: c.courseCode || '',
-            unit: Number(c.unit)||0,
-            score: Number(c.score)||0
-          }))
-        });
-        return;
-      }
-    } catch {}
+    if (sessionPayload) {
+      render(sessionPayload);
+      return;
+    }
 
-    document.getElementById('pBody').innerHTML =
-      '<tr><td colspan="6" class="muted">No data found. Return to the calculator and submit again.</td></tr>';
+    document.getElementById('pTerms').innerHTML =
+      '<div class="muted">No data found. Return to the calculator and submit again.</div>';
+  }
+
+  function mergeData(apiData, session) {
+    // If your backend doesn’t yet return "terms", fall back to session’s "terms".
+    const out = { ...(apiData || {}) };
+    if (session) {
+      // prefer session fields if api missing
+      ['studentName','country','universityName','universityLogoUrl','scaleLegend'].forEach(k=>{
+        if (!out[k] && session[k]) out[k] = session[k];
+      });
+      if (!Array.isArray(out.terms) || out.terms.length===0) {
+        if (Array.isArray(session.terms) && session.terms.length) out.terms = session.terms;
+      }
+    }
+    return out;
   }
 
   function render(data){
-    const { studentName, country, semester, academicYear, scaleLegend, universityName, universityLogoUrl } = data || {};
-    const tbody = document.getElementById('pBody');
+    const { studentName, country, universityName, universityLogoUrl, scaleLegend } = data || {};
+    const pTerms = document.getElementById('pTerms');
 
     document.getElementById('pStudent').textContent  = studentName || '—';
     document.getElementById('pCountry').textContent  = country || '—';
-    document.getElementById('pSemester').textContent = semester || '—';
-    document.getElementById('pYear').textContent     = academicYear || '—';
     const uniEl = document.getElementById('pUniversity');
     uniEl.textContent = universityName || '';
 
@@ -233,36 +222,73 @@
       logo.src = universityLogoUrl;
     } else { logo.removeAttribute('src'); logo.style.display = 'none'; }
 
-    tbody.innerHTML = '';
-    let totalUnits = 0, qualityPoints = 0;
+    // Terms
+    pTerms.innerHTML = '';
+    let totalUnits = 0, totalQuality = 0;
 
-    (data.courses || []).forEach(c => {
-      const unit = Number(c.unit)||0;
-      const score = Number(c.score)||0;
-      const { letter, points } = gradeFromScore(score, country || 'nigeria');
-      if (unit > 0) { totalUnits += unit; qualityPoints += unit * points; }
-      const tr = document.createElement('tr');
-      tr.innerHTML = `
-        <td>${escapeHtml(c.courseCode || '')}</td>
-        <td>${escapeHtml(c.title || '')}</td>
-        <td>${unit}</td>
-        <td>${score}</td>
-        <td>${letter}</td>
-        <td>${points}</td>
-      `;
-      tbody.appendChild(tr);
-    });
+    const terms = Array.isArray(data.terms) ? data.terms : [];
+    if (terms.length === 0) {
+      pTerms.innerHTML = '<div class="muted">No terms.</div>';
+    } else {
+      terms.forEach((t, idx) => {
+        const title = document.createElement('div');
+        const termLabel = `${t.semester || 'Term'} ${t.academicYear || ''}`.trim();
+        title.className = 'term-title';
+        title.textContent = termLabel || `Term ${idx+1}`;
+        pTerms.appendChild(title);
 
-    if (!tbody.children.length) {
-      const tr = document.createElement('tr');
-      tr.innerHTML = `<td colspan="6" class="muted">No courses.</td>`;
-      tbody.appendChild(tr);
+        const g = computeTermGPA(t, country||'nigeria');
+        const gdiv = document.createElement('div');
+        gdiv.className = 'term-gpa';
+        gdiv.textContent = `GPA: ${g.gpa.toFixed(2)} (Units ${g.units})`;
+        pTerms.appendChild(gdiv);
+
+        const table = document.createElement('table');
+        table.className = 'grid';
+        table.innerHTML = `
+          <thead>
+            <tr>
+              <th>Code</th>
+              <th>Course</th>
+              <th>Units</th>
+              <th>Score</th>
+              <th>Grade</th>
+              <th>Points</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        `;
+        const tbody = table.querySelector('tbody');
+        (t.courses||[]).forEach(c=>{
+          const unit = Number(c.unit)||0;
+          const score = Number(c.score)||0;
+          const { letter, points } = gradeFromScore(score, country||'nigeria');
+          if (unit > 0) { totalUnits += unit; totalQuality += unit * points; }
+          const tr = document.createElement('tr');
+          tr.innerHTML = `
+            <td>${escapeHtml(c.courseCode || '')}</td>
+            <td>${escapeHtml(c.title || '')}</td>
+            <td>${unit}</td>
+            <td>${score}</td>
+            <td>${letter}</td>
+            <td>${points}</td>
+          `;
+          tbody.appendChild(tr);
+        });
+        if (!tbody.children.length) {
+          const tr = document.createElement('tr');
+          tr.innerHTML = `<td colspan="6" class="muted">No courses.</td>`;
+          tbody.appendChild(tr);
+        }
+        pTerms.appendChild(table);
+      });
     }
 
-    const gpa = totalUnits > 0 ? (qualityPoints / totalUnits) : 0;
+    const gpa = totalUnits > 0 ? (totalQuality / totalUnits) : 0;
     document.getElementById('pUnits').textContent = String(totalUnits);
     document.getElementById('pGpa').textContent = `${gpa.toFixed(2)} / ${maxPoints(country||'nigeria').toFixed(2)}`;
 
+    // Scale (vertical)
     const scaleDiv = document.getElementById('pScale');
     const scaleTitle = document.getElementById('pScaleTitle');
     const ranges = [...currentScale(country||'nigeria')].sort((a,b)=>b.min-a.min);
@@ -273,6 +299,17 @@
       row.innerHTML = `<span class="badge">${r.letter}</span> <span>min ${r.min}</span> <span class="muted">${Number(r.points)} pts</span>`;
       scaleDiv.appendChild(row);
     });
+  }
+
+  function computeTermGPA(term, country) {
+    return (term.courses || []).reduce((acc, c) => {
+      const unit = Number(c.unit), score = Number(c.score);
+      if (Number.isFinite(unit) && unit > 0 && Number.isFinite(score)) {
+        const { points } = gradeFromScore(score, country);
+        acc.units += unit; acc.quality += unit * points;
+      }
+      return acc;
+    }, { units: 0, quality: 0, get gpa(){ return this.units>0 ? (this.quality/this.units) : 0; } });
   }
 
   function escapeHtml(s){

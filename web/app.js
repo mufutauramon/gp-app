@@ -1,6 +1,6 @@
 'use strict';
 
-// Show any JS errors on the page too (helps debugging in production)
+// Show any JS errors on the page (helps debugging)
 window.addEventListener('error', (e) => {
   console.error('JS error:', e.error || e.message);
   const t = document.getElementById('toast');
@@ -8,7 +8,7 @@ window.addEventListener('error', (e) => {
 });
 
 (function () {
-  console.log('app.js loaded');
+  console.log('app.js loaded (multi-term)');
 
   // ---------- Config ----------
   const API_BASE = '/api';
@@ -99,23 +99,22 @@ window.addEventListener('error', (e) => {
   const state = {
     studentName: '',
     country: 'nigeria',
-    semester: '',
-    academicYear: '',
     universityName: '',
     universityLogoUrl: '',
-    courses: [] // user adds rows
+    terms: [] // [{id, semester, academicYear, courses:[{...}]}]
   };
 
   // ---------- Elements ----------
-  const tbody = document.getElementById('tbody');
+  const termsContainer = document.getElementById('termsContainer');
+  const termTpl = document.getElementById('term-template');
   const rowTpl = document.getElementById('row-template');
+
   const nameInput = document.getElementById('studentName');
   const countrySelect = document.getElementById('countrySelect');
-  const semesterSelect = document.getElementById('semesterSelect');
-  const yearInput = document.getElementById('yearInput');
   const uniInput  = document.getElementById('universityName');
   const logoInput = document.getElementById('universityLogo');
   const logoPreview = document.getElementById('logoPreview');
+
   const scaleList = document.getElementById('scaleList');
   const scaleSummary = document.getElementById('scaleSummary');
   const statStudent = document.getElementById('statStudent');
@@ -124,26 +123,18 @@ window.addEventListener('error', (e) => {
   const changeBox = document.getElementById('changeSummary');
 
   // ---------- Buttons wiring ----------
-  document.getElementById('addBtn').addEventListener('click', addCourse);
+  document.getElementById('addTermBtn').addEventListener('click', () => addTerm());
   document.getElementById('resetBtn').addEventListener('click', resetAll);
   document.getElementById('printBtn').addEventListener('click', () => window.print());
   document.getElementById('submitBtn').addEventListener('click', (e) => { e.preventDefault(); onSubmit(); });
 
   // ---------- Input wiring ----------
   nameInput.addEventListener('input', () => { state.studentName = nameInput.value; renderStats(); });
-  countrySelect.addEventListener('change', () => { state.country = countrySelect.value; refreshSemesterOptions(); renderScale(); renderTable(); renderStats(); });
-  semesterSelect.addEventListener('change', () => { state.semester = semesterSelect.value; });
-  yearInput.addEventListener('input', () => { state.academicYear = yearInput.value; });
+  countrySelect.addEventListener('change', () => { state.country = countrySelect.value; renderScale(); renderTerms(); renderStats(); });
   uniInput.addEventListener('input', () => { state.universityName = uniInput.value; });
   logoInput.addEventListener('input', () => { state.universityLogoUrl = logoInput.value; updateLogoPreview(); });
 
   // ---------- Helpers ----------
-  function goToPrint(id) {
-    const url = new URL('/print.html', window.location.origin);
-    if (id) url.searchParams.set('id', id);
-    console.log('Redirecting to', url.toString());
-    window.location.assign(url.toString());
-  }
   function uid() { return Math.random().toString(36).slice(2, 10); }
   function currentScale() { return SCALES[state.country] || SCALES.nigeria; }
   function maxPoints() { return Math.max(...currentScale().map(r => Number(r.points) || 0)); }
@@ -172,22 +163,39 @@ window.addEventListener('error', (e) => {
     logoPreview.onerror = () => { logoPreview.style.display='none'; logoPreview.removeAttribute('src'); };
     logoPreview.src = url;
   }
-  function refreshSemesterOptions() {
+  function defaultSemester() {
     const opts = SEMESTERS[state.country] || SEMESTERS.default;
-    semesterSelect.innerHTML = '';
-    opts.forEach(v => {
-      const o = document.createElement('option');
-      o.value = o.textContent = v; semesterSelect.appendChild(o);
+    return opts[0];
+  }
+  function addTerm() {
+    state.terms.push({
+      id: uid(),
+      semester: defaultSemester(),
+      academicYear: String(new Date().getFullYear()),
+      courses: []
     });
-    if (!state.semester || !opts.includes(state.semester)) state.semester = opts[0];
-    semesterSelect.value = state.semester;
+    renderTerms(); renderStats();
+  }
+  function removeTerm(id) {
+    state.terms = state.terms.filter(t => t.id !== id);
+    renderTerms(); renderStats();
+  }
+  function addCourse(term) {
+    term.courses.push({ id: uid(), courseCode: '', title: '', unit: 0, score: null });
+    renderTerms(); renderStats();
+  }
+  function removeCourse(term, courseId) {
+    term.courses = term.courses.filter(c => c.id !== courseId);
+    renderTerms(); renderStats();
   }
 
   // ---------- Rendering ----------
-  function render() { refreshSemesterOptions(); renderScale(); renderTable(); renderStats(); updateLogoPreview(); }
+  function render() {
+    if (state.terms.length === 0) addTerm();
+    renderScale(); renderTerms(); renderStats(); updateLogoPreview();
+  }
   function renderScale() {
     scaleList.innerHTML = '';
-    countrySelect.value = state.country;
     scaleSummary.textContent = 'Scale: ' + scaleSummaryText();
     const ranges = [...currentScale()].sort((a,b) => b.min - a.min);
     ranges.forEach(r => {
@@ -196,81 +204,103 @@ window.addEventListener('error', (e) => {
       scaleList.appendChild(row);
     });
   }
-  function renderTable() {
-    tbody.innerHTML = '';
-    if (state.courses.length === 0) {
-      const tr = document.createElement('tr');
-      tr.innerHTML = `<td colspan="7" class="muted">No courses yet. Click <strong>Add course</strong> to begin.</td>`;
-      tbody.appendChild(tr);
-      return;
-    }
-    state.courses.forEach(c => {
-      const tr = rowTpl.content.firstElementChild.cloneNode(true);
-      const codeEl = tr.querySelector('.code');
-      const titleEl = tr.querySelector('.title');
-      const unitEl = tr.querySelector('.unit');
-      const scoreBtn = tr.querySelector('.score-btn');
-      const letterEl = tr.querySelector('.letter');
-      const pointsEl = tr.querySelector('.points');
-      const removeBtn = tr.querySelector('.remove');
+  function renderTerms() {
+    termsContainer.innerHTML = '';
+    const semOpts = (SEMESTERS[state.country] || SEMESTERS.default).slice();
 
-      codeEl.value = c.courseCode || '';
-      titleEl.value = c.title || '';
-      unitEl.value = c.unit ?? 0;
+    state.terms.forEach((term) => {
+      const termEl = termTpl.content.firstElementChild.cloneNode(true);
+      termEl.dataset.termid = term.id;
 
-      const { letter, points } = gradeFromScore(c.score);
-      letterEl.textContent = letter;
-      pointsEl.textContent = points;
-      scoreBtn.textContent = Number.isFinite(Number(c.score)) ? String(c.score) : 'Set';
+      const semSelect = termEl.querySelector('.term-semester');
+      semSelect.innerHTML = '';
+      semOpts.forEach(s => {
+        const o = document.createElement('option');
+        o.value = o.textContent = s; semSelect.appendChild(o);
+      });
+      if (!term.semester || !semOpts.includes(term.semester)) term.semester = semOpts[0];
+      semSelect.value = term.semester;
+      semSelect.addEventListener('change', (e) => { term.semester = e.target.value; });
 
-      if (!(Number(c.unit) > 0)) unitEl.classList.add('invalid'); else unitEl.classList.remove('invalid');
+      const yearInput = termEl.querySelector('.term-year');
+      yearInput.value = term.academicYear || '';
+      yearInput.addEventListener('input', (e) => { term.academicYear = e.target.value; });
 
-      codeEl.addEventListener('input', e => { c.courseCode = e.target.value; });
-      titleEl.addEventListener('input', e => { c.title = e.target.value; });
-      unitEl.addEventListener('input', e => { c.unit = e.target.valueAsNumber; renderStats(); renderTable(); });
-      scoreBtn.addEventListener('click', () => openScoreModal(c));
-      removeBtn.addEventListener('click', () => { state.courses = state.courses.filter(x => x !== c); render(); });
+      // per-term GPA label
+      const g = computeTermGPA(term);
+      const gSpan = termEl.querySelector('.term-gpa');
+      gSpan.textContent = `GPA: ${g.gpa.toFixed(2)} (Units ${g.units})`;
 
-      tbody.appendChild(tr);
+      // Buttons
+      termEl.querySelector('.term-add-course')
+        .addEventListener('click', () => addCourse(term));
+      termEl.querySelector('.term-remove')
+        .addEventListener('click', () => removeTerm(term.id));
+
+      // tbody
+      const tbody = termEl.querySelector('.term-tbody');
+      tbody.innerHTML = '';
+      if (term.courses.length === 0) {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td colspan="7" class="muted">No courses yet. Click <strong>Add course</strong> to begin.</td>`;
+        tbody.appendChild(tr);
+      } else {
+        term.courses.forEach((c) => {
+          const tr = rowTpl.content.firstElementChild.cloneNode(true);
+          const codeEl = tr.querySelector('.code');
+          const titleEl = tr.querySelector('.title');
+          const unitEl = tr.querySelector('.unit');
+          const scoreBtn = tr.querySelector('.score-btn');
+          const letterEl = tr.querySelector('.letter');
+          const pointsEl = tr.querySelector('.points');
+          const removeBtn = tr.querySelector('.remove');
+
+          codeEl.value = c.courseCode || '';
+          titleEl.value = c.title || '';
+          unitEl.value = c.unit ?? 0;
+          scoreBtn.textContent = Number.isFinite(Number(c.score)) ? String(c.score) : 'Set';
+
+          const { letter, points } = gradeFromScore(c.score);
+          letterEl.textContent = letter;
+          pointsEl.textContent = points;
+
+          if (!(Number(c.unit) > 0)) unitEl.classList.add('invalid'); else unitEl.classList.remove('invalid');
+
+          codeEl.addEventListener('input', e => { c.courseCode = e.target.value; });
+          titleEl.addEventListener('input', e => { c.title = e.target.value; });
+          unitEl.addEventListener('input', e => { c.unit = e.target.valueAsNumber; renderTerms(); renderStats(); });
+          scoreBtn.addEventListener('click', () => openScoreModal(c));
+          removeBtn.addEventListener('click', () => removeCourse(term, c.id));
+
+          tbody.appendChild(tr);
+        });
+      }
+
+      termsContainer.appendChild(termEl);
     });
   }
-  function renderStats() {
-    const totals = state.courses.reduce((acc, c) => {
+
+  function computeTermGPA(term) {
+    return (term.courses || []).reduce((acc, c) => {
       const unit = Number(c.unit), score = Number(c.score);
       if (Number.isFinite(unit) && unit > 0 && Number.isFinite(score)) {
         const { points } = gradeFromScore(score);
         acc.units += unit; acc.quality += unit * points;
       }
       return acc;
-    }, { units: 0, quality: 0 });
-    const gpa = totals.units > 0 ? (totals.quality / totals.units) : 0;
-    statStudent.textContent = state.studentName?.trim() || '—';
-    statUnits.textContent = String(totals.units);
-    statGpa.textContent = `${gpa.toFixed(2)} / ${maxPoints().toFixed(2)}`;
+    }, { units: 0, quality: 0, get gpa(){ return this.units>0 ? (this.quality/this.units) : 0; } });
   }
 
-  // ---------- Actions (the ones you were missing) ----------
-  function addCourse() {
-    state.courses.push({ id: uid(), courseCode: '', title: '', unit: 0, score: null });
-    render();
-  }
-  function resetAll() {
-    state.studentName = '';
-    state.country = 'nigeria';
-    state.semester = '';
-    state.academicYear = '';
-    state.universityName = '';
-    state.universityLogoUrl = '';
-    state.courses = [];
-    // reset inputs
-    nameInput.value = '';
-    countrySelect.value = 'nigeria';
-    semesterSelect.innerHTML = '';
-    yearInput.value = '';
-    uniInput.value = '';
-    logoInput.value = '';
-    updateLogoPreview();
-    render();
+  function renderStats() {
+    let totalUnits = 0, totalQuality = 0;
+    state.terms.forEach(t => {
+      const g = computeTermGPA(t);
+      totalUnits += g.units; totalQuality += g.quality;
+    });
+    const gpa = totalUnits > 0 ? (totalQuality / totalUnits) : 0;
+    statStudent.textContent = state.studentName?.trim() || '—';
+    statUnits.textContent = String(totalUnits);
+    statGpa.textContent = `${gpa.toFixed(2)} / ${maxPoints().toFixed(2)}`;
   }
 
   // ---------- Modal (score) ----------
@@ -282,58 +312,62 @@ window.addEventListener('error', (e) => {
 
   function openScoreModal(courseObj){
     modalCourseRef = courseObj;
-    if (modalInput) modalInput.value = Number(courseObj.score ?? 0);
-    if (modalBackdrop) {
-      modalBackdrop.style.display = 'flex';
-      setTimeout(()=> modalInput && modalInput.focus(), 0);
-    }
+    modalInput.value = Number(courseObj.score ?? 0);
+    modalBackdrop.style.display = 'flex';
+    setTimeout(()=> modalInput.focus(), 0);
   }
-  function closeScoreModal(){ modalCourseRef = null; if (modalBackdrop) modalBackdrop.style.display = 'none'; }
-  if (modalOk) {
-    modalOk.addEventListener('click', () => {
-      const v = Number(modalInput.value);
-      if (!Number.isFinite(v) || v < 0 || v > 100) { toast('Enter a score 0–100'); return; }
-      if (modalCourseRef) modalCourseRef.score = v;
-      closeScoreModal(); renderTable(); renderStats();
-    });
-  }
-  if (modalCancel) modalCancel.addEventListener('click', closeScoreModal);
+  function closeScoreModal(){ modalCourseRef = null; modalBackdrop.style.display = 'none'; }
+  modalOk.addEventListener('click', () => {
+    const v = Number(modalInput.value);
+    if (!Number.isFinite(v) || v < 0 || v > 100) { toast('Enter a score 0–100'); return; }
+    if (modalCourseRef) modalCourseRef.score = v;
+    closeScoreModal(); renderTerms(); renderStats();
+  });
+  modalCancel.addEventListener('click', closeScoreModal);
 
   // ---------- Validation & serialization ----------
   function serializeState() {
     return {
       studentName: state.studentName || "",
       country: state.country || "nigeria",
-      semester: state.semester || "",
-      academicYear: (state.academicYear || "").slice(0, 16),
       universityName: state.universityName || "",
       universityLogoUrl: cleanLogoUrl(state.universityLogoUrl),
-      courses: state.courses.map(c => ({
-        courseCode: c.courseCode || "",
-        title: c.title || "",
-        unit: Number(c.unit) || 0,
-        score: Number(c.score) || 0
-      })),
-      scaleLegend: scaleSummaryText()
+      scaleLegend: scaleSummaryText(),
+      // NEW: terms array
+      terms: state.terms.map(t => ({
+        semester: t.semester || "",
+        academicYear: (t.academicYear || "").slice(0, 16),
+        courses: (t.courses || []).map(c => ({
+          courseCode: c.courseCode || "",
+          title: c.title || "",
+          unit: Number(c.unit) || 0,
+          score: Number(c.score) || 0
+        }))
+      }))
     };
   }
   function validate() {
     if (!state.studentName.trim()) { toast('Please enter student name'); return false; }
-    if (!state.courses.length) { toast('Add at least one course'); return false; }
-    const y = (state.academicYear || '').trim();
-    if (y && !/^\d{4}([\/-]\d{2})?$/.test(y)) { toast('Year format: 2025 or 2024/25'); return false; }
+    if (!state.terms.length) { toast('Add at least one term'); return false; }
 
-    const seen = new Set();
-    for (const c of state.courses) {
-      const t = String(c.title || '').trim();
-      const code = String(c.courseCode || '').trim();
-      if (!t && !code) { toast('Course needs a title or code'); return false; }
-      if (!(Number(c.unit) > 0)) { toast('Units must be > 0'); return false; }
-      if (!(Number(c.score) >= 0 && Number(c.score) <= 100)) { toast('Scores must be 0–100'); return false; }
-      const key = (code ? code.toLowerCase().replace(/[^a-z0-9]/g,'') : t.toLowerCase()) + '|' + (Number(c.unit)||0) + '|' + (Number(c.score)||0);
-      if (seen.has(key)) { toast('Duplicate course in this list'); return false; }
-      seen.add(key);
+    let anyCourse = false;
+    for (const t of state.terms) {
+      const y = (t.academicYear || '').trim();
+      if (y && !/^\d{4}([\/-]\d{2})?$/.test(y)) { toast('Year format: 2025 or 2024/25'); return false; }
+      const seen = new Set();
+      for (const c of (t.courses||[])) {
+        anyCourse = true;
+        const title = String(c.title || '').trim();
+        const code = String(c.courseCode || '').trim();
+        if (!title && !code) { toast('Course needs a title or code'); return false; }
+        if (!(Number(c.unit) > 0)) { toast('Units must be > 0'); return false; }
+        if (!(Number(c.score) >= 0 && Number(c.score) <= 100)) { toast('Scores must be 0–100'); return false; }
+        const key = (code ? code.toLowerCase().replace(/[^a-z0-9]/g,'') : title.toLowerCase()) + '|' + (Number(c.unit)||0) + '|' + (Number(c.score)||0);
+        if (seen.has(key)) { toast('Duplicate course within a term'); return false; }
+        seen.add(key);
+      }
     }
+    if (!anyCourse) { toast('Add at least one course'); return false; }
     return true;
   }
 
@@ -343,21 +377,21 @@ window.addEventListener('error', (e) => {
     return {
       studentName: clean(p.studentName),
       country: clean(p.country),
-      semester: clean(p.semester),
-      academicYear: clean(p.academicYear),
-      courses: (p.courses || [])
-        .map(c => ({
+      terms: (p.terms||[]).map(t => ({
+        semester: clean(t.semester),
+        academicYear: clean(t.academicYear),
+        courses: (t.courses||[]).map(c => ({
           title: clean(c.title),
           code: clean(c.courseCode).replace(/[^a-z0-9]/g,''),
-          unit: Number(c.unit) || 0,
-          score: Number(c.score) || 0
-        }))
-        .sort((a,b) => {
-          const ka = a.code || a.title, kb = b.code || b.title;
+          unit: Number(c.unit)||0,
+          score: Number(c.score)||0
+        })).sort((a,b)=>{
+          const ka = a.code || a.title, kb=b.code||b.title;
           const t = ka.localeCompare(kb); if (t) return t;
           if (a.unit !== b.unit) return a.unit - b.unit;
           return a.score - b.score;
         })
+      }))
     };
   }
   async function sha256Hex(str) {
@@ -435,12 +469,16 @@ window.addEventListener('error', (e) => {
     const btn = document.getElementById('submitBtn');
     if (btn) { btn.disabled = false; btn.textContent = 'Submit'; }
   }
+  function goToPrint(id) {
+    const url = new URL('/print.html', window.location.origin);
+    if (id) url.searchParams.set('id', id);
+    window.location.assign(url.toString());
+  }
 
   // ---------- Init ----------
   document.addEventListener('DOMContentLoaded', () => {
-    const y = new Date().getFullYear();
-    state.academicYear = String(y);
-    yearInput.value = state.academicYear;
+    // start with one empty term
+    addTerm();
     render();
   });
 })();

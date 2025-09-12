@@ -13,12 +13,15 @@
     label { min-width: 120px; }
     input, select, button { font-size: 14px; }
     input, select { background:#0e1628; color:#e5e7eb; border:1px solid #1f2937; border-radius:8px; padding:8px 10px; }
-    input.invalid { border-color:#ef4444; }
+    input.invalid, select.invalid { border-color:#ef4444; }
     .btn { padding:10px 12px; border-radius:8px; border:1px solid #374151; background:#111827; color:#e5e7eb; cursor:pointer; }
     .btn:hover { border-color:#7c3aed; }
     .muted { color:#9ca3af; }
     .banner { position:sticky; top:0; z-index:50; background:#111827; border:1px solid #1f2937; border-radius:10px; padding:10px 12px; margin:0 0 12px 0; }
-    .grid { width:100%; border-collapse: collapse; }
+    .term-card { border:1px solid #1f2937; border-radius:12px; background:#0e1628; padding:12px; margin:14px 0; }
+    .term-head { display:flex; gap:10px; align-items:center; flex-wrap:wrap; justify-content:space-between; }
+    .term-head .left { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+    .grid { width:100%; border-collapse: collapse; margin-top:8px; }
     .grid th, .grid td { border:1px solid #223; padding:8px; text-align:left; }
     .badge { display:inline-block; min-width:36px; text-align:center; border-radius:8px; border:1px solid #2b3141; padding:2px 8px; background:#0e1628; margin-right:8px; }
     .stats { display:flex; gap:12px; flex-wrap:wrap; margin: 8px 0 12px; }
@@ -70,12 +73,6 @@
         <option value="india">India (10pt)</option>
         <option value="ghana">Ghana</option>
       </select>
-
-      <label for="semesterSelect">Semester/Term</label>
-      <select id="semesterSelect"></select>
-
-      <label for="yearInput">Year</label>
-      <input id="yearInput" type="text" placeholder="e.g., 2025 or 2024/25" style="width:140px;">
     </section>
 
     <section class="row">
@@ -90,66 +87,73 @@
       <small class="muted">Use a direct HTTPS image link (.png/.jpg).</small>
     </section>
 
-    <!-- Actions -->
+    <!-- Global actions -->
     <section class="row noprint">
-      <button id="addBtn" class="btn" type="button">Add course</button>
+      <button id="addTermBtn" class="btn" type="button">Add term</button>
       <button id="resetBtn" class="btn" type="button">Reset</button>
       <button id="submitBtn" class="btn" type="button">Submit</button>
     </section>
 
-    <!-- Stats -->
+    <!-- Overall stats -->
     <section class="stats">
       <div class="stat"><strong>Student:</strong> <span id="statStudent">—</span></div>
-      <div class="stat"><strong>Total Units:</strong> <span id="statUnits">0</span></div>
-      <div class="stat"><strong>GPA:</strong> <span id="statGpa">0.00</span></div>
+      <div class="stat"><strong>Total Units (all terms):</strong> <span id="statUnits">0</span></div>
+      <div class="stat"><strong>Cumulative GPA:</strong> <span id="statGpa">0.00</span></div>
     </section>
 
     <div id="changeSummary" class="noprint muted" style="display:none; margin:8px 0;"></div>
 
-    <!-- Table -->
-    <section>
-      <table class="grid">
-        <thead>
-          <tr>
-            <th>Code</th>
-            <th>Course</th>
-            <th>Units</th>
-            <th>Score</th>
-            <th>Grade</th>
-            <th>Points</th>
-            <th class="noprint"></th>
-          </tr>
-        </thead>
-        <tbody id="tbody">
-          <tr><td colspan="7" class="muted">No courses yet. Click <strong>Add course</strong> to begin.</td></tr>
-        </tbody>
-      </table>
-      <!-- Score Modal (needed by app.js) -->
-    <div id="scoreModalBackdrop" class="modal-backdrop">
-    <div class="modal">
-    <h3>Enter Score (0–100)</h3>
-    <div class="row"><input id="scoreModalInput" type="number" min="0" max="100" step="1" /></div>
-    <div class="actions">
-      <button id="scoreCancel" class="btn" type="button">Cancel</button>
-      <button id="scoreOk" class="btn" type="button">OK</button>
-     </div>
-     </div>
-     </div>
+    <!-- Terms container -->
+    <section id="termsContainer"></section>
 
+    <!-- Term template -->
+    <template id="term-template">
+      <div class="term-card" data-termid="">
+        <div class="term-head">
+          <div class="left">
+            <label>Semester/Term</label>
+            <select class="term-semester"></select>
+            <label>Year</label>
+            <input class="term-year" type="text" placeholder="e.g., 2025 or 2024/25" style="width:140px;">
+            <span class="muted term-gpa"></span>
+          </div>
+          <div class="right noprint" style="display:flex; gap:8px;">
+            <button class="btn term-add-course" type="button">Add course</button>
+            <button class="btn term-remove" type="button">Remove term</button>
+          </div>
+        </div>
 
-      <!-- Row template -->
-      <template id="row-template">
-        <tr>
-          <td><input class="code"  type="text"  placeholder="BIO101"></td>
-          <td><input class="title" type="text"  placeholder="Biology 101"></td>
-          <td><input class="unit"  type="number" min="0" step="1"></td>
-          <td><button class="score-btn" type="button">Set</button></td>
-          <td class="letter">—</td>
-          <td class="points">0</td>
-          <td class="noprint"><button class="remove btn" type="button">×</button></td>
-        </tr>
-      </template>
-    </section>
+        <table class="grid">
+          <thead>
+            <tr>
+              <th>Code</th>
+              <th>Course</th>
+              <th>Units</th>
+              <th>Score</th>
+              <th>Grade</th>
+              <th>Points</th>
+              <th class="noprint"></th>
+            </tr>
+          </thead>
+          <tbody class="term-tbody">
+            <tr><td colspan="7" class="muted">No courses yet. Click <strong>Add course</strong> to begin.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </template>
+
+    <!-- Course row template -->
+    <template id="row-template">
+      <tr>
+        <td><input class="code"  type="text"  placeholder="BIO101"></td>
+        <td><input class="title" type="text"  placeholder="Biology 101"></td>
+        <td><input class="unit"  type="number" min="0" step="1"></td>
+        <td><button class="score-btn" type="button">Set</button></td>
+        <td class="letter">—</td>
+        <td class="points">0</td>
+        <td class="noprint"><button class="remove btn" type="button">×</button></td>
+      </tr>
+    </template>
 
     <!-- Grading scale (vertical, bottom) -->
     <section class="footer-card">
@@ -162,6 +166,18 @@
       <a href="./terms.html">Terms of Use</a>
     </footer>
   </main>
+
+  <!-- Score Modal (needed by app.js) -->
+  <div id="scoreModalBackdrop" class="modal-backdrop">
+    <div class="modal">
+      <h3>Enter Score (0–100)</h3>
+      <div class="row"><input id="scoreModalInput" type="number" min="0" max="100" step="1" /></div>
+      <div class="actions">
+        <button id="scoreCancel" class="btn" type="button">Cancel</button>
+        <button id="scoreOk" class="btn" type="button">OK</button>
+      </div>
+    </div>
+  </div>
 
   <div id="toast"></div>
   <script src="./app.js" defer></script>
