@@ -189,6 +189,37 @@ window.addEventListener('error', (e) => {
     renderTerms(); renderStats();
   }
 
+    // Reset everything to a fresh state
+  function resetAll() {
+    // clear top-level state
+    state.studentName = '';
+    state.country = 'nigeria';
+    state.universityName = '';
+    state.universityLogoUrl = '';
+
+    // clear inputs
+    if (nameInput) nameInput.value = '';
+    if (countrySelect) countrySelect.value = 'nigeria';
+    if (uniInput) uniInput.value = '';
+    if (logoInput) logoInput.value = '';
+    updateLogoPreview();
+
+    // reset terms to a single empty term
+    state.terms = [];
+    addTerm(); // creates one new empty term with default semester/year
+
+    // clear any UI notices
+    const box = document.getElementById('changeSummary');
+    if (box) { box.style.display = 'none'; box.textContent = ''; }
+
+    // clear client-side dedupe caches
+    try { localStorage.removeItem(LAST_SAVED_KEY); } catch {}
+    try { sessionStorage.removeItem(STORAGE_KEY); } catch {}
+
+    // re-render
+    render();
+  }
+
   // ---------- Rendering ----------
   function render() {
     if (state.terms.length === 0) addTerm();
